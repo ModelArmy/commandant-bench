@@ -22,9 +22,18 @@ module Commandant::Bench
 
     # All ruleset files in the tree, sorted by folder then tool.
     def rulesets : Array(RulesetRef)
-      Dir.glob((@rulesets_path / "*" / "*.json").to_s).map do |path|
-        RulesetRef.new(File.basename(File.dirname(path)), File.basename(path, ".json"))
-      end.sort_by! { |ref| {ref.folder, ref.tool} }
+      raise NotFoundError.new("No ruleset tree at #{@rulesets_path}") unless Dir.exists?(@rulesets_path.to_s)
+
+      refs = [] of RulesetRef
+      Dir.each_child(@rulesets_path.to_s) do |folder|
+        folder_path = @rulesets_path / folder
+        next unless Dir.exists?(folder_path.to_s)
+
+        Dir.each_child(folder_path.to_s) do |file|
+          refs << RulesetRef.new(folder, File.basename(file, ".json")) if file.ends_with?(".json")
+        end
+      end
+      refs.sort_by! { |ref| {ref.folder, ref.tool} }
     end
 
     # The rule references in *ruleset*: each rule in file order, then `default`.

@@ -62,6 +62,12 @@ describe Commandant::Bench::CLI do
     errors.should contain("posix/nope")
   end
 
+  it "exits 1 when the ruleset tree does not exist" do
+    status, _, errors = run_cli(["list", "--rulesets", (FIXTURES_PATH / "nope").to_s])
+    status.should eq(1)
+    errors.should contain("No ruleset tree")
+  end
+
   it "exits 1 for an unknown platform" do
     status, _, errors = run_cli(with_rulesets(["try", "zap x", "--platform", "plan9"]))
     status.should eq(1)
