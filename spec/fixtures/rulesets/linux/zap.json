@@ -1,0 +1,16 @@
+{
+  "tool": "zap",
+  "tool_summary": "Fixture zap",
+  "platform": "linux",
+  "llm_confidence": "high",
+  "unknown_flags": [],
+  "is_multiplexer": false,
+  "option_abbreviations": {},
+  "rules": [],
+  "default_rule": {
+    "risk_tags": [],
+    "reversible": "yes",
+    "severity": "INFO",
+    "mitre_attack": []
+  }
+}

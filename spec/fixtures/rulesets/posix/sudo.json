@@ -1,0 +1,16 @@
+{
+  "tool": "sudo",
+  "tool_summary": "Fixture sudo",
+  "platform": "posix",
+  "llm_confidence": "high",
+  "unknown_flags": [],
+  "is_multiplexer": false,
+  "option_abbreviations": {},
+  "rules": [],
+  "default_rule": {
+    "risk_tags": [],
+    "reversible": "yes",
+    "severity": "ERROR",
+    "mitre_attack": []
+  }
+}

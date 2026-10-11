@@ -1,0 +1,99 @@
+{
+  "tool": "zap",
+  "tool_summary": "Fixture zap",
+  "platform": "posix",
+  "llm_confidence": "high",
+  "unknown_flags": [],
+  "is_multiplexer": false,
+  "option_abbreviations": {},
+  "rules": [
+    {
+      "id": "zap-recursive-force",
+      "description": "zap-recursive-force description",
+      "patterns": [
+        {
+          "pattern": "zap ...",
+          "pattern_type": "flag",
+          "example": "zap -rf build/",
+          "match": {
+            "flags_all": [
+              "-r",
+              "-f"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "zap-recursive-raw",
+      "description": "zap-recursive-raw description",
+      "patterns": [
+        {
+          "pattern": "zap ...",
+          "pattern_type": "flag",
+          "example": "zap -r -f build/",
+          "match": {
+            "raw_pattern": "zap\\s+-r\\s"
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "zap-force",
+      "description": "zap-force description",
+      "patterns": [
+        {
+          "pattern": "zap ...",
+          "pattern_type": "flag",
+          "example": "zap -f notes.txt",
+          "match": {
+            "flags_any": [
+              "-f"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "WARNING",
+      "mitre_attack": [],
+      "examples": {
+        "fires": [
+          "zap -f notes.txt"
+        ],
+        "does_not_fire": [
+          "zap -r build/",
+          "zap -i -f notes.txt"
+        ]
+      }
+    }
+  ],
+  "default_rule": {
+    "risk_tags": [],
+    "reversible": "yes",
+    "severity": "INFO",
+    "mitre_attack": [],
+    "examples": {
+      "fires": [
+        "zap notes.txt"
+      ],
+      "does_not_fire": [
+        "zap -f notes.txt"
+      ]
+    }
+  }
+}

@@ -21,7 +21,18 @@ For example, a reviewer looking at `rm-recursive-force` sees a table like this (
 
 ## Usage
 
-The library API and the `commandant-bench` binary are under construction; see [BENCH_DESIGN.md](./BENCH_DESIGN.md) for the planned API and [DEVELOPMENT.md](./DEVELOPMENT.md) to build it.
+Build the binary (see [DEVELOPMENT.md](./DEVELOPMENT.md)), then point it at a ruleset tree with `--rulesets` or `RULESETS_PATH`:
+
+```sh
+export RULESETS_PATH=../commandant-rules-core/rulesets
+commandant-bench list                                  # ruleset files and rule counts
+commandant-bench report posix/rm#rm-recursive-force    # bench one rule
+commandant-bench report posix/rm                       # bench every rule, including #default
+commandant-bench report posix/rm --json                # the same, as JSON
+commandant-bench try 'FOO=1 rm -rf build/'             # assess one command
+```
+
+From Crystal, use `Commandant::Bench::Workbench`; see [BENCH_DESIGN.md](./BENCH_DESIGN.md) for the API.
 
 ## License
 

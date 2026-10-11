@@ -24,6 +24,20 @@ Command                        |Description
 
 ## Code layout
 
+The core, in `src/commandant_bench/`:
+
+|File                 |Contents                                                               |
+|---------------------|-----------------------------------------------------------------------|
+|`workbench.cr`       |`Workbench`, the API entry point, and row judging                      |
+|`runner.cr`          |Runs one command through a fresh `Commandant::Assessor`                |
+|`variants.cr`        |`VariantKind` and the variant generator                                |
+|`examples.cr`        |Reads a rule's examples from ruleset JSON                              |
+|`row.cr`, `report.cr`|Result types                                                           |
+|`refs.cr`            |`RulesetRef` and `RuleRef`                                             |
+|`target_platform.cr` |Platforms and shells a command can be assessed on                      |
+
+The repository:
+
 Path                       |Contents                                                                  
 ---------------------------|--------------------------------------------------------------------------
 `src/commandant_bench.cr`  |Library entry point; requires every bench component                       

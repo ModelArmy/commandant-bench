@@ -1,23 +1,27 @@
 # Bench Design
 
-**Status:** draft for review. Nothing here is implemented beyond the scaffolding.
+**Status:** M1 implemented (sections 3–5 and 7, without combinations); later milestones are design only.
 
 ## 1. Purpose
 
 A ruleset reviewer must answer four questions about every rule:
 
-   |Question                 |What it asks                                                               
----|-------------------------|---------------------------------------------------------------------------
-Q-a|True?                    |Are the description and claimed behaviour right for the tool version cited?
-Q-b|Catches the right things?|Does the rule fire on the commands it should, and only those?              
-Q-c|Calibrated?              |Is its severity consistent with similar rules across the corpus?           
-Q-d|Honest?                  |Do its `notes` admit the gaps it has?                                      
+&nbsp;|Question                 |What it asks                                                               
+------|-------------------------|---------------------------------------------------------------------------
+Q-a   |True?                    |Are the description and claimed behaviour right for the tool version cited?
+Q-b   |Catches the right things?|Does the rule fire on the commands it should, and only those?              
+Q-c   |Calibrated?              |Is its severity consistent with similar rules across the corpus?           
+Q-d   |Honest?                  |Do its `notes` admit the gaps it has?                                      
 
 Q-b and Q-c are where review time goes, and both are hard to answer by reading JSON. The bench answers their mechanical parts by running commands through the real engine and comparing rules across the corpus. The reviewer judges results instead of imagining them.
 
 ## 2. Architecture
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart TD
     subgraph P["Presentation (replaceable)"]
         TUI["TUI"]
@@ -51,15 +55,17 @@ The API is in-process Crystal. A web UI later wraps the same calls in an HTTP se
 ## 3. API operations
 
 ```crystal
-bench = Commandant::Bench::Bench.new(rulesets: Path["../commandant-rules-core/rulesets"])
+bench = Commandant::Bench::Workbench.new(Path["../commandant-rules-core/rulesets"])
 
-bench.rulesets                          # => Array(RulesetRef)
-bench.report(rule)                      # => RuleReport: rows, combinations, lint, siblings, status
-bench.try("rm -Rf build/", platform)    # => TryResult: one ad hoc command
-bench.siblings(rule)                    # => Array(SiblingRule)
-bench.lint(ruleset)                     # => Array(LintFinding)
-bench.sign_off(rule, reviewer, answers) # => SignOff
-bench.status(rule)                      # => ReviewStatus
+bench.rulesets                          # => Array(RulesetRef)                      M1
+bench.rules(ruleset)                    # => Array(RuleRef)                         M1
+bench.report(rule)                      # => RuleReport                             M1
+bench.report(ruleset)                   # => Array(RuleReport), one per rule        M1
+bench.try("rm -Rf build/", platform)    # => Actual: one ad hoc command             M1
+bench.siblings(rule)                    # => Array(SiblingRule)                     M3
+bench.lint(ruleset)                     # => Array(LintFinding)                     M3
+bench.sign_off(rule, reviewer, answers) # => SignOff                                M4
+bench.status(rule)                      # => ReviewStatus                           M4
 ```
 
 `RulesetRef` names a ruleset file by folder and tool (`posix/rm`). `RuleRef` adds a rule id (`posix/rm#rm-recursive-force`), or `#default` for the default rule.
@@ -79,7 +85,9 @@ Type          |Fields
 `LintFinding` |`rule`, `field`, `check`, `message`                                                        
 `ReviewStatus`|`unreviewed` \| `current` (sign-off) \| `lapsed` (sign-off, current hash)                  
 
-All types include `JSON::Serializable`.
+All types include `JSON::Serializable`. Severities serialise as written in rulesets (`ERROR`).
+
+`fired_rules` covers the primary command only, because the engine does not report rules fired inside compound commands. That is why wrapper variants are judged by severity.
 
 ### A row checks this rule, not the verdict
 
@@ -108,6 +116,8 @@ Kind        |Example transform                     |Subject|Expectation|Needs
 `shell-wrap`|`rm -rf x` → `sh -c 'rm -rf x'`       |engine |at_least   |—                   
 
 A kind whose data is missing is reported as `skipped` with the reason, never silently omitted. A visible gap is part of the review.
+
+Until the flag declaration exists (M5), `split` uses the flags a ruleset mentions in its matches to tell `-rf` from a word flag like `-exec`, and `reorder` assumes leading flags take no value. Both are heuristics; the generated command is always shown, so a nonsensical variant is visible.
 
 The `subject` routes findings: a miss on a `rule` row is a ruleset fix; a miss on an `engine` row is a `commandant.cr` fix that no ruleset edit can solve.
 
