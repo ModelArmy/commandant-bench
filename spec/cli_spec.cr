@@ -1,10 +1,10 @@
 require "./spec_helper"
 require "../src/commandant_bench_cli/cli"
 
-private def run_cli(args : Array(String) = [] of String) : {Int32, String, String}
+private def run_cli(args : Array(String) = [] of String, input = "") : {Int32, String, String}
   stdout = IO::Memory.new
   stderr = IO::Memory.new
-  status = Commandant::Bench::CLI.run(args, stdout, stderr)
+  status = Commandant::Bench::CLI.run(args, stdout, stderr, IO::Memory.new(input))
   {status, stdout.to_s, stderr.to_s}
 end
 
@@ -66,6 +66,12 @@ describe Commandant::Bench::CLI do
     status, _, errors = run_cli(["list", "--rulesets", (FIXTURES_PATH / "nope").to_s])
     status.should eq(1)
     errors.should contain("No ruleset tree")
+  end
+
+  it "reviews with plain output when not on a terminal" do
+    status, output, _ = run_cli(with_rulesets(["review", "posix/zap#zap-force", "--plain"]), input: "quit\n")
+    status.should eq(0)
+    output.should contain("## posix/zap#zap-force")
   end
 
   it "exits 1 for an unknown platform" do

@@ -4,7 +4,51 @@ shards:
     git: https://github.com/crystal-ameba/ameba.git
     version: 1.7.0
 
+  baked_file_system:
+    git: https://github.com/ralsina/baked_file_system.git
+    version: 0.11.1
+
+  base58:
+    git: https://github.com/crystal-china/base58.cr.git
+    version: 0.1.0+git.commit.0e2c44d16a8098b00d8bf0b74add8bb9ea2f1c5f
+
   commandant:
     git: https://github.com/modelarmy/commandant.cr.git
     version: 0.5.3+git.commit.9618872f96967f76a89b4f17f8db8378034be1e0
+
+  crimage:
+    git: https://github.com/naqvis/crimage.git
+    version: 1.0.5+git.commit.7d3244a3850646e3d398cef071f7c3e3f52c7518
+
+  docopt:
+    git: https://github.com/ralsina/docopt.cr.git
+    version: 1.5.0
+
+  hansa:
+    git: https://github.com/ralsina/hansa.git
+    version: 0.2.1
+
+  sixteen:
+    git: https://github.com/ralsina/sixteen.git
+    version: 0.9.0
+
+  tablo:
+    git: https://github.com/hutou/tablo.git
+    version: 1.1.0
+
+  tartrazine:
+    git: https://github.com/ralsina/tartrazine.git
+    version: 0.27.2
+
+  termify:
+    git: https://github.com/nogginly/termify.cr.git
+    version: 0.7.0
+
+  textseg:
+    git: https://github.com/naqvis/uni_text_seg.git
+    version: 0.1.3
+
+  uniwidth:
+    git: https://github.com/naqvis/uni_char_width.git
+    version: 0.1.3
 

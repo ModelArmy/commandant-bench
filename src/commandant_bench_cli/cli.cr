@@ -2,6 +2,7 @@ require "option_parser"
 require "json"
 require "../commandant_bench"
 require "./text_report"
+require "./review/session"
 
 # Command-line entry point for the `commandant-bench` binary.
 #
@@ -15,9 +16,10 @@ module Commandant::Bench::CLI
     property rulesets : Path = Path[ENV["RULESETS_PATH"]? || "./rulesets"]
     property? json = false
     property platform : TargetPlatform? = nil
+    property? plain = false
   end
 
-  def self.run(argv : Array(String), io : IO = STDOUT, err : IO = STDERR) : Int32
+  def self.run(argv : Array(String), io : IO = STDOUT, err : IO = STDERR, input : IO = STDIN) : Int32
     return help(io) if argv.empty?
 
     subcommand, args = argv.first, argv[1..]
@@ -25,6 +27,7 @@ module Commandant::Bench::CLI
     when "list"                       then list(args, io)
     when "report"                     then report(args, io)
     when "try"                        then try(args, io)
+    when "review"                     then review(args, io, input)
     when "help", "--help", "-h"       then help(io)
     when "version", "--version", "-v" then version(io)
     else
@@ -85,6 +88,22 @@ module Commandant::Bench::CLI
     0
   end
 
+  private def self.review(args, io, input) : Int32
+    options, positional = parse(args, "review [REF]")
+    raise ArgumentError.new("review takes at most one REF") if positional.size > 1
+
+    bench = Workbench.new(options.rulesets)
+    bench.rulesets # fail early on a missing tree
+    start = positional.first?
+    if !options.plain? && io.responds_to?(:tty?) && io.tty?
+      display = Review::TerminalDisplay.new(input, io)
+      display.session { Review::Session.new(bench, display).run(start) }
+    else
+      Review::Session.new(bench, Review::PlainDisplay.new(input, io)).run(start)
+    end
+    0
+  end
+
   private def self.parse(args : Array(String), usage : String) : {Options, Array(String)}
     options = Options.new
     positional = [] of String
@@ -94,6 +113,7 @@ module Commandant::Bench::CLI
         options.rulesets = Path[path]
       end
       parser.on("--json", "Print results as JSON") { options.json = true }
+      parser.on("--plain", "Write Markdown as text instead of rendering it (review only)") { options.plain = true }
       parser.on("-p NAME", "--platform NAME", "linux, macos, windows-cmd or windows-powershell (try only)") do |name|
         options.platform = TargetPlatform.from_name(name) || raise ArgumentError.new("Unknown platform #{name.inspect}")
       end
@@ -116,6 +136,7 @@ module Commandant::Bench::CLI
         report FOLDER/TOOL       Bench every rule in a ruleset
         report FOLDER/TOOL#RULE  Bench one rule (use #default for the default rule)
         try COMMAND              Assess one command against the full tree
+        review [REF]             Review rules interactively, optionally starting at REF
         help                     Show this help
         version                  Print version
 
@@ -123,11 +144,13 @@ module Commandant::Bench::CLI
         -r, --rulesets PATH      Ruleset tree (default: $RULESETS_PATH or ./rulesets)
         --json                   Print results as JSON
         -p, --platform NAME      Platform for try: linux, macos, windows-cmd, windows-powershell
+        --plain                  Review with plain Markdown output, e.g. when piping
 
       Examples:
         commandant-bench report posix/rm#rm-recursive-force
         commandant-bench report posix/rm --json
         commandant-bench try 'FOO=1 rm -rf build/'
+        commandant-bench review posix/rm
       HELP
     0
   end

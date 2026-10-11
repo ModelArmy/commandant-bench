@@ -8,7 +8,8 @@ This document explains how to build `commandant-bench` and how the code is organ
     - as a gem via `gem install ops_team` or
     - as a tool via `brew tap nickthecook/crops && brew install ops`
 2. If you are not using macOS, or a Linux that uses `apt`, please [install Crystal](https://crystal-lang.org/install/)
-3. Clone [`commandant-rules-core`](https://github.com/ModelArmy/commandant-rules-core) next to this repo, or set `RULESETS_PATH` to its `rulesets/` folder.
+3. On Linux, install the `libxml2` development package (for example `apt install libxml2-dev`). Termify's syntax highlighter links against it; macOS and the Windows Crystal distribution already provide it.
+4. Clone [`commandant-rules-core`](https://github.com/ModelArmy/commandant-rules-core) next to this repo, or set `RULESETS_PATH` to its `rulesets/` folder.
 
 ## Getting started
 
@@ -35,6 +36,16 @@ The core, in `src/commandant_bench/`:
 |`row.cr`, `report.cr`|Result types                                                           |
 |`refs.cr`            |`RulesetRef` and `RuleRef`                                             |
 |`target_platform.cr` |Platforms and shells a command can be assessed on                      |
+
+The presentation, in `src/commandant_bench_cli/`:
+
+|File                 |Contents                                                               |
+|---------------------|-----------------------------------------------------------------------|
+|`cli.cr`             |Argument parsing and subcommand dispatch                               |
+|`text_report.cr`     |Plain-text rendering for `report` and `try`                            |
+|`review/session.cr`  |The interactive `review` loop and its commands                         |
+|`review/views.cr`    |Markdown for each review screen, as pure functions                     |
+|`review/display.cr`  |Terminal (Termify) and plain displays                                  |
 
 The repository:
 

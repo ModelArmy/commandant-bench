@@ -30,7 +30,10 @@ commandant-bench report posix/rm#rm-recursive-force    # bench one rule
 commandant-bench report posix/rm                       # bench every rule, including #default
 commandant-bench report posix/rm --json                # the same, as JSON
 commandant-bench try 'FOO=1 rm -rf build/'             # assess one command
+commandant-bench review posix/rm                       # review interactively
 ```
+
+`review` is an interactive session that asks and scrolls: open a ruleset, press Enter to step through its rules, `problems` to see only misses and false alarms, `try` to check a hunch. Type `help` inside it for all commands. On a terminal it renders Markdown with [Termify](https://github.com/nogginly/termify.cr); when piped, or with `--plain`, it writes the Markdown as text.
 
 From Crystal, use `Commandant::Bench::Workbench`; see [BENCH_DESIGN.md](./BENCH_DESIGN.md) for the API.
 

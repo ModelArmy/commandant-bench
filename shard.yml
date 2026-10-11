@@ -15,6 +15,9 @@ dependencies:
   commandant:
     github: modelarmy/commandant.cr
     branch: main
+  termify:
+    github: nogginly/termify.cr
+    version: ">= 0.7.0"
 
 development_dependencies:
   ameba:

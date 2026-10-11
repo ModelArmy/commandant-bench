@@ -1,6 +1,6 @@
 # Bench Design
 
-**Status:** M1 implemented (sections 3–5 and 7, without combinations); later milestones are design only.
+**Status:** M1 and M2 implemented (sections 3–5, 7 and 12, without combinations); later milestones are design only.
 
 ## 1. Purpose
 
@@ -204,18 +204,23 @@ Sign-offs live in `commandant-rules-core` beside the rulesets, at `reviews/<fold
 
 ## 12. Presentation
 
-The TUI comes first, as a client of the API:
+The `review` subcommand is an interactive session that asks and scrolls rather than drawing windows. The reviewer types a command; the session answers with a block of Markdown, rendered by Termify on a terminal and written as text otherwise.
 
-1. **Ruleset list:** tools with counts of rules by status.
-2. **Rule card:** summary, rows table with misses highlighted, siblings, lint findings, and the four questions with sign-off.
-3. **Try box:** type a command, see `TryResult` immediately.
+|Screen          |Shows                                                                          |
+|----------------|-------------------------------------------------------------------------------|
+|Ruleset list    |Ruleset files, optionally filtered by name, numbered for `open N`              |
+|Ruleset summary |Each rule with severity and counts of ok, miss, false alarm and skipped rows   |
+|Rule card       |Description, reversibility, risk tags, notes, the rows table, skipped reasons   |
+|Try result      |One ad hoc command: platform, resolved ruleset, severity, rules fired          |
 
-A plain-text `report` subcommand precedes the TUI and remains useful for scripts and CI.
+Pressing Enter steps to the next rule, so a reviewer can walk a ruleset with one key. `problems` limits rule cards to misses and false alarms.
+
+Views are pure functions from bench results to Markdown; the session holds navigation state only. A later web UI replaces both and keeps the API.
 
 ## 13. Milestones
 
 1. **M1. Runner and report.** Load rulesets, read examples, generate variants that need no flag declaration, run them, and print a text report via `commandant-bench report posix/rm#rm-recursive-force`. Pilot on `rm`.
-2. **M2. TUI.**
+2. **M2. Interactive review.** The `review` subcommand (section 12).
 3. **M3. Lint and calibration.**
 4. **M4. Sign-off store.**
 5. **M5. Engine: flag declaration and split default** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
@@ -225,4 +230,4 @@ A plain-text `report` subcommand precedes the TUI and remains useful for scripts
 
 - **D3. Examples inline in each rule, or in a separate file per tool?** Recommended: inline (section 8.1).
 - **D9. Sign-off location:** `reviews/` beside the rulesets (section 11), or inside each ruleset file?
-- **D10. TUI library:** to choose at M2.
+- **D10. TUI library:** decided: Termify for rendering, line-based input, no windowing.
