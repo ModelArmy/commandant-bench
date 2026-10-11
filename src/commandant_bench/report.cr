@@ -15,9 +15,11 @@ module Commandant::Bench
     getter? examples_from_patterns : Bool
     getter engine_version : String
     getter rows : Array(BenchRow)
+    getter lint : Array(LintFinding)
+    getter calibration : Calibration
 
     def initialize(@rule, @description, @severity, @reversible, @risk_tags, @notes,
-                   @examples_from_patterns, @engine_version, @rows)
+                   @examples_from_patterns, @engine_version, @rows, @lint, @calibration)
     end
 
     def count(outcome : Outcome) : Int32

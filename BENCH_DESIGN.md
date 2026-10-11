@@ -1,6 +1,6 @@
 # Bench Design
 
-**Status:** M1 and M2 implemented (sections 3–5, 7 and 12, without combinations); later milestones are design only.
+**Status:** M1–M3 implemented (sections 3–5, 7, 9, 10 and 12, without combinations); later milestones are design only.
 
 ## 1. Purpose
 
@@ -62,8 +62,8 @@ bench.rules(ruleset)                    # => Array(RuleRef)                     
 bench.report(rule)                      # => RuleReport                             M1
 bench.report(ruleset)                   # => Array(RuleReport), one per rule        M1
 bench.try("rm -Rf build/", platform)    # => Actual: one ad hoc command             M1
-bench.siblings(rule)                    # => Array(SiblingRule)                     M3
-bench.lint(ruleset)                     # => Array(LintFinding)                     M3
+bench.calibration(rule)                 # => Calibration, with siblings             M3
+bench.lint(ruleset)                     # => Array(LintFinding); bench.lint for all  M3
 bench.sign_off(rule, reviewer, answers) # => SignOff                                M4
 bench.status(rule)                      # => ReviewStatus                           M4
 ```
@@ -168,19 +168,33 @@ Rules and the default rule both carry `examples`. The per-pattern `example` fiel
 
 ## 9. Calibration
 
-Siblings of a rule are rules anywhere in the corpus whose `risk_tags` overlap it. The report shows them with severity and reversibility, and marks the rule as an outlier when its severity differs from the most common severity among close siblings. The reviewer decides whether the outlier is justified.
+Siblings of a rule are rules anywhere in the corpus whose `risk_tags` overlap it, measured as Jaccard similarity of the tag sets. Default rules are compared only with default rules. The report lists the twelve most similar, with severity and reversibility.
+
+A sibling is *close* at 0.75 overlap or more. A rule is an *outlier* when it has at least five close siblings, at least three quarters of them agree on a severity, and the rule's severity differs. Looser thresholds flagged a third of the corpus, which is a census rather than a shortlist.
+
+An outlier says that severity or tags disagree with the corpus, not which is wrong. `security-dump-keychain` is ERROR among INFO siblings because its tags do not mention credentials: the fix there is the tags.
 
 ## 10. Lint
 
-Mechanical checks from `RULESET_REVIEW_GUIDE.md`, plus checks the bench makes possible:
+Each check has a level. An **error** is a defect; **advice** asks the reviewer to look and may be justified. `commandant-bench lint` exits 1 on any error, so CI can gate on it.
 
-1. `id` follows `{tool}-{risk-summary}`, lowercase, hyphenated.
-2. `pattern` is Semgrep-style, not regex.
-3. `match` is non-empty; `reversible: depends` has a `reversible_note`.
-4. `default_rule` is not duplicated among `rules`.
-5. Every rule has at least one `fires` example.
-6. Every flag named in a `match` is declared in `flags`.
-7. No rule contains duplicate patterns.
+|Check                     |Level |Finds                                                                    |
+|--------------------------|------|-------------------------------------------------------------------------|
+|`tool-matches-file`       |error |`tool` differs from the file name                                        |
+|`platform-matches-folder` |error |`platform` differs from the folder                                       |
+|`id-convention`           |advice|id is not `{tool}-{risk-summary}`, lowercase and hyphenated (dots in the tool become hyphens)|
+|`pattern-looks-like-regex`|advice|`pattern` uses regex syntax instead of Semgrep style                     |
+|`empty-match`             |error |a pattern's `match` has no criteria                                      |
+|`duplicate-pattern`       |error |two patterns in one rule have identical matches                          |
+|`depends-without-note`    |error |a rule is `depends` without `reversible_note`                            |
+|`depends-without-note`    |advice|the default rule is `depends`; the schema gives it no note field         |
+|`missing-mitre`           |error |`mitre_attack` is absent; `[]` is the explicit "none applies"            |
+|`missing-example`         |error |a rule has no example it should fire on                                  |
+|`example-wrong-binary`    |error |an example runs a different binary, e.g. `find … \| xargs rm` in `xargs` |
+|`fires-on-bare-command`   |advice|a catch-all rule fires on the bare tool, so the default rule never applies, nor will an unrecognised-flag default (section 8.2)|
+|`undeclared-flag`         |error |a match names a flag missing from `flags` (only once `flags` exists)     |
+
+Default rules without examples are not flagged until the corpus migrates to `examples` (M6); today every default would fail.
 
 ## 11. Sign-off store
 
@@ -221,7 +235,7 @@ Views are pure functions from bench results to Markdown; the session holds navig
 
 1. **M1. Runner and report.** Load rulesets, read examples, generate variants that need no flag declaration, run them, and print a text report via `commandant-bench report posix/rm#rm-recursive-force`. Pilot on `rm`.
 2. **M2. Interactive review.** The `review` subcommand (section 12).
-3. **M3. Lint and calibration.**
+3. **M3. Lint and calibration.** The `lint` subcommand, lint and calibration on every report and rule card, and `siblings` in `review`.
 4. **M4. Sign-off store.**
 5. **M5. Engine: flag declaration and split default** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
 6. **M6. Corpus migration** to `examples` and `flags`, reviewed with the bench.

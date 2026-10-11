@@ -28,6 +28,7 @@ module Commandant::Bench::CLI
     when "report"                     then report(args, io)
     when "try"                        then try(args, io)
     when "review"                     then review(args, io, input)
+    when "lint"                       then lint(args, io)
     when "help", "--help", "-h"       then help(io)
     when "version", "--version", "-v" then version(io)
     else
@@ -88,6 +89,22 @@ module Commandant::Bench::CLI
     0
   end
 
+  # Exits 1 when any finding is an error, so CI can gate on it.
+  private def self.lint(args, io) : Int32
+    options, positional = parse(args, "lint [FOLDER/TOOL]")
+    raise ArgumentError.new("lint takes at most one FOLDER/TOOL") if positional.size > 1
+
+    bench = Workbench.new(options.rulesets)
+    findings = positional.first?.try { |ref| bench.lint(RulesetRef.parse(ref)) } || bench.lint
+    if options.json?
+      findings.to_json(io)
+      io.puts
+    else
+      TextReport.render(findings, io)
+    end
+    findings.any?(&.level.error?) ? 1 : 0
+  end
+
   private def self.review(args, io, input) : Int32
     options, positional = parse(args, "review [REF]")
     raise ArgumentError.new("review takes at most one REF") if positional.size > 1
@@ -137,6 +154,7 @@ module Commandant::Bench::CLI
         report FOLDER/TOOL#RULE  Bench one rule (use #default for the default rule)
         try COMMAND              Assess one command against the full tree
         review [REF]             Review rules interactively, optionally starting at REF
+        lint [FOLDER/TOOL]       Lint one ruleset or the whole tree; exits 1 on errors
         help                     Show this help
         version                  Print version
 

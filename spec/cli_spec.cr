@@ -74,6 +74,18 @@ describe Commandant::Bench::CLI do
     output.should contain("## posix/zap#zap-force")
   end
 
+  it "lints a ruleset and exits 1 on errors" do
+    status, output, _ = run_cli(["lint", "posix/bait", "--rulesets", (FIXTURES_PATH / "lint").to_s])
+    status.should eq(1)
+    output.should contain("duplicate-pattern")
+  end
+
+  it "lints a clean tree and exits 0" do
+    status, output, _ = run_cli(with_rulesets(["lint", "posix/zap"]))
+    status.should eq(0)
+    output.should contain("0 error")
+  end
+
   it "exits 1 for an unknown platform" do
     status, _, errors = run_cli(with_rulesets(["try", "zap x", "--platform", "plan9"]))
     status.should eq(1)

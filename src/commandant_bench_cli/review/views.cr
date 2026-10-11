@@ -23,6 +23,7 @@ module Commandant::Bench::CLI::Review::Views
     | `prev` | Previous rule |
     | `rules` | Back to the open ruleset's rules |
     | `problems` | Show only misses and false alarms, or everything again |
+    | `siblings` | Rules elsewhere that share the open rule's risk tags |
     | `try COMMAND` | Assess one command against the full tree |
     | `platform NAME` | Platform for `try`: linux, macos, windows-cmd, windows-powershell |
     | `help` | Show this help |
@@ -48,10 +49,11 @@ module Commandant::Bench::CLI::Review::Views
     end
   end
 
-  def self.ruleset_summary(ruleset : RulesetRef, reports : Array(RuleReport)) : String
+  def self.ruleset_summary(ruleset : RulesetRef, reports : Array(RuleReport), findings : Array(LintFinding)) : String
     String.build do |io|
       io << "## " << ruleset << "\n\n"
-      io << "| # | Rule | Severity | ok | miss | false alarm | skipped |\n|--:|---|---|--:|--:|--:|--:|\n"
+      io << "| # | Rule | Severity | ok | miss | false alarm | skipped | lint | calibration |\n"
+      io << "|--:|---|---|--:|--:|--:|--:|--:|---|\n"
       reports.each_with_index(1) do |report, number|
         io << "| " << number << " | " << report.rule.rule_id << " | " << report.severity
         {Outcome::Ok, Outcome::Miss, Outcome::FalseAlarm, Outcome::Skipped}.each do |outcome|
@@ -59,9 +61,11 @@ module Commandant::Bench::CLI::Review::Views
           problem = count > 0 && (outcome.miss? || outcome.false_alarm?)
           io << " | " << (problem ? "**#{count}**" : count)
         end
-        io << " |\n"
+        io << " | " << report.lint.size << " | " << (report.calibration.outlier? ? "**outlier**" : "") << " |\n"
       end
-      io << "\nType a rule number, or press Enter to start at the first rule."
+      io << "\n"
+      lint_list(findings.select(&.rule_id.nil?), io)
+      io << "Type a rule number, or press Enter to start at the first rule."
     end
   end
 
@@ -74,6 +78,8 @@ module Commandant::Bench::CLI::Review::Views
       if notes = report.notes
         io << "> **Notes:** " << notes << "\n\n"
       end
+      io << calibration(report) << "\n\n"
+      lint_list(report.lint, io)
       io << "*Examples taken from pattern `example` fields.*\n\n" if report.examples_from_patterns?
 
       run = report.rows.reject(&.outcome.skipped?)
@@ -88,6 +94,41 @@ module Commandant::Bench::CLI::Review::Views
       io << summary(report)
       io << " · showing problems only" if problems_only
     end
+  end
+
+  def self.siblings(report : RuleReport) : String
+    siblings = report.calibration.siblings
+    return "#{report.rule} has no siblings: no other rule shares its risk tags." if siblings.empty?
+
+    String.build do |io|
+      io << "## Siblings of " << report.rule << " · " << report.severity << "\n\n"
+      io << calibration(report) << "\n\n"
+      io << "| Rule | Severity | Reversible | Overlap | Risk tags |\n|---|---|---|--:|---|\n"
+      siblings.each do |sibling|
+        io << "| " << sibling.rule << " | " << sibling.severity << " | " << sibling.reversible
+        io << " | " << sibling.overlap << " | " << sibling.risk_tags.join(", ") << " |\n"
+      end
+    end
+  end
+
+  def self.calibration(report : RuleReport) : String
+    calibration = report.calibration
+    usual = calibration.usual
+    return "Calibration: fewer than #{Calibration::MIN_CLOSE} close siblings." if usual.nil? || calibration.close < Calibration::MIN_CLOSE
+
+    text = "Calibration: #{calibration.usual_count} of #{calibration.close} close siblings are #{usual}"
+    calibration.outlier? ? "#{text}; this rule is #{report.severity}: **outlier**" : text
+  end
+
+  def self.lint_list(findings : Array(LintFinding), io : IO) : Nil
+    return if findings.empty?
+
+    io << "Lint:\n\n"
+    findings.each do |finding|
+      io << "- " << (finding.level.error? ? "**error**" : "advice") << " " << finding.check.name
+      io << " (" << finding.field << "): " << finding.message << "\n"
+    end
+    io << "\n"
   end
 
   def self.actual(command : String, actual : Actual) : String

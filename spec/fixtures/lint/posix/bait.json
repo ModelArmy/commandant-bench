@@ -1,0 +1,209 @@
+{
+  "tool": "bait",
+  "tool_summary": "Lint fixture: every rule breaks something",
+  "platform": "linux",
+  "llm_confidence": "high",
+  "unknown_flags": [],
+  "is_multiplexer": false,
+  "option_abbreviations": {},
+  "flags": {
+    "-r": {
+      "aliases": [
+        "--recursive"
+      ],
+      "takes_value": false
+    }
+  },
+  "rules": [
+    {
+      "id": "bait-clean",
+      "description": "No findings.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait -r x",
+          "match": {
+            "flags_all": [
+              "-r"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "Bait_Bad_Id",
+      "description": "Breaks the id convention.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait --recursive x",
+          "match": {
+            "flags_any": [
+              "--recursive"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "bait-regex",
+      "description": "Regex in pattern.",
+      "patterns": [
+        {
+          "pattern": "bait\\s+-r.*",
+          "pattern_type": "flag",
+          "example": "bait -r x",
+          "match": {
+            "flags_any": [
+              "-r"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "bait-duplicate",
+      "description": "Duplicate patterns.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait -r x",
+          "match": {
+            "flags_any": [
+              "-r"
+            ]
+          }
+        },
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait -r y",
+          "match": {
+            "flags_any": [
+              "-r"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "bait-depends",
+      "description": "Depends without a note.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait -r x",
+          "match": {
+            "flags_any": [
+              "-r"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "depends",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "bait-wrong-binary",
+      "description": "Example runs another binary.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "find . | bait -r",
+          "match": {
+            "flags_any": [
+              "-r"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "bait-undeclared",
+      "description": "Uses a flag the ruleset does not declare.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait -z x",
+          "match": {
+            "flags_any": [
+              "-z"
+            ]
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "ERROR",
+      "mitre_attack": []
+    },
+    {
+      "id": "bait-catch-all",
+      "description": "Fires on every invocation.",
+      "patterns": [
+        {
+          "pattern": "bait ...",
+          "pattern_type": "flag",
+          "example": "bait x",
+          "match": {
+            "raw_pattern": "^bait(\\s|$)"
+          }
+        }
+      ],
+      "risk_tags": [
+        "deletes-files"
+      ],
+      "reversible": "no",
+      "severity": "WARNING",
+      "mitre_attack": []
+    }
+  ],
+  "default_rule": {
+    "risk_tags": [],
+    "reversible": "depends",
+    "severity": "INFO",
+    "mitre_attack": []
+  }
+}

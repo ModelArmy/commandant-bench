@@ -16,6 +16,7 @@ module Commandant::Bench
   # whose subject is the engine are assessed against the full tree.
   class Workbench
     getter rulesets_path : Path
+    @calibration_index : CalibrationIndex? = nil
 
     def initialize(@rulesets_path : Path)
     end
@@ -54,11 +55,30 @@ module Commandant::Bench
       with_isolated_tree(ruleset) do |isolated|
         rule_runner = Runner.new(isolated)
         engine_runner = Runner.new(@rulesets_path)
+        findings = lint(ruleset, typed, raw, rule_runner)
 
         rules(ruleset).map do |ref|
-          build_report(ref, typed, raw, known_flags, rule_runner, engine_runner)
+          build_report(ref, typed, raw, known_flags, rule_runner, engine_runner, findings)
         end
       end
+    end
+
+    # Lints *ruleset*. Findings about the file as a whole have no rule id.
+    def lint(ruleset : RulesetRef) : Array(LintFinding)
+      typed, raw = load(ruleset)
+      with_isolated_tree(ruleset) { |isolated| lint(ruleset, typed, raw, Runner.new(isolated)) }
+    end
+
+    # Lints every ruleset in the tree.
+    def lint : Array(LintFinding)
+      rulesets.flat_map { |ref| lint(ref) }
+    end
+
+    # Compares *rule*'s severity with rules elsewhere in the corpus that share
+    # its risk tags.
+    def calibration(rule : RuleRef) : Calibration
+      typed, _ = load(rule.ruleset)
+      calibrate(rule, typed)
     end
 
     # Assesses one ad hoc command against the full tree.
@@ -66,7 +86,18 @@ module Commandant::Bench
       Runner.new(@rulesets_path).run(command, platform, Process.parse_arguments_posix(command).first? || "")
     end
 
-    private def build_report(ref, typed, raw, known_flags, rule_runner, engine_runner) : RuleReport
+    private def lint(ref : RulesetRef, typed, raw, runner : Runner) : Array(LintFinding)
+      Lint.check(ref, typed, raw, runner.run(typed.tool, TargetPlatform.for_folder(ref.folder), typed.tool))
+    end
+
+    private def calibrate(ref : RuleRef, typed : Commandant::Ruleset) : Calibration
+      index = @calibration_index ||= CalibrationIndex.new(rulesets.map { |each_ref| {each_ref, load(each_ref)[0]} })
+      rule = typed.rules.find(&.id.==(ref.rule_id))
+      tags = (rule.try(&.risk_tags) || typed.default_rule.risk_tags).map(&.to_s).to_set
+      index.calibrate(ref, tags, rule.try(&.severity) || typed.default_rule.severity)
+    end
+
+    private def build_report(ref, typed, raw, known_flags, rule_runner, engine_runner, findings) : RuleReport
       rule = typed.rules.find(&.id.==(ref.rule_id))
       severity = rule.try(&.severity) || typed.default_rule.severity
       examples = Examples.read(raw, ref.rule_id)
@@ -111,6 +142,8 @@ module Commandant::Bench
         examples_from_patterns: examples.from_patterns,
         engine_version: Commandant::Version::VERSION,
         rows: rows,
+        lint: findings.select(&.rule_id.==(ref.rule_id)),
+        calibration: calibrate(ref, typed),
       )
     end
 

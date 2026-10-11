@@ -33,6 +33,8 @@ The core, in `src/commandant_bench/`:
 |`runner.cr`          |Runs one command through a fresh `Commandant::Assessor`                |
 |`variants.cr`        |`VariantKind` and the variant generator                                |
 |`examples.cr`        |Reads a rule's examples from ruleset JSON                              |
+|`lint.cr`            |`Lint` checks and `LintFinding`                                        |
+|`calibration.cr`     |`CalibrationIndex`: siblings and outliers by shared risk tags          |
 |`row.cr`, `report.cr`|Result types                                                           |
 |`refs.cr`            |`RulesetRef` and `RuleRef`                                             |
 |`target_platform.cr` |Platforms and shells a command can be assessed on                      |
@@ -56,6 +58,8 @@ Path                       |Contents
 `src/commandant_bench_cli/`|`Commandant::Bench::CLI`: argument parsing and presentation for the binary
 `src/bench_main.cr`        |Executable entry point; calls `CLI.run(ARGV)` and exits                   
 `spec/`                    |Specs, using the Crystal standard library `spec`                          
+`spec/fixtures/rulesets/`  |A small ruleset tree; `zap` has deliberately brittle and wrong rules
+`spec/fixtures/lint/`      |`bait`, a ruleset where each rule breaks one lint check
 
 ### Presentation stays outside the core
 

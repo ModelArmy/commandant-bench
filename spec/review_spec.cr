@@ -62,6 +62,13 @@ describe Review::Session do
     cards[3].should contain("| ok |")
   end
 
+  it "shows a rule's siblings and calibration" do
+    output = transcript("siblings", "quit", start: "posix/zap#zap-force")
+    output.should contain("## Siblings of posix/zap#zap-force · WARNING")
+    output.should contain("| posix/zap#zap-recursive-force | ERROR |")
+    output.should contain("Calibration: fewer than 5 close siblings.")
+  end
+
   it "assesses a command on the chosen platform" do
     output = transcript("platform macos", "try zap -rf build/", "quit")
     output.should contain("| Platform | macos |")

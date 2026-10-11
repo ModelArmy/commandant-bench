@@ -22,10 +22,15 @@ module Commandant::Bench
              end
       raise NotFoundError.new("No rule #{rule_id.inspect}") unless rule
 
+      read_rule(rule)
+    end
+
+    # Reads the examples of one rule's raw JSON object.
+    def self.read_rule(rule : JSON::Any) : Examples
       if examples = rule["examples"]?
         new(strings(examples["fires"]?), strings(examples["does_not_fire"]?), false)
       else
-        patterns = rule["patterns"]?.try(&.as_a) || [] of JSON::Any
+        patterns = rule["patterns"]?.try(&.as_a?) || [] of JSON::Any
         new(patterns.compact_map(&.["example"]?.try(&.as_s)).uniq!, [] of String, !patterns.empty?)
       end
     end

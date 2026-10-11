@@ -15,6 +15,8 @@ module Commandant::Bench::CLI::TextReport
     io.puts "#{report.rule}  #{report.severity}"
     io.puts "  #{report.description}"
     io.puts "  (examples taken from pattern `example` fields)" if report.examples_from_patterns?
+    io.puts "  #{calibration(report)}"
+    report.lint.each { |finding| io.puts "  #{lint_line(finding)}" }
     io.puts
 
     run, skipped = report.rows.partition { |row| !row.outcome.skipped? }
@@ -29,6 +31,26 @@ module Commandant::Bench::CLI::TextReport
     io.puts
     io.puts "  #{report.rows.size} rows: #{report.count(Outcome::Ok)} ok, #{report.count(Outcome::Miss)} miss, " \
             "#{report.count(Outcome::FalseAlarm)} false alarm, #{report.count(Outcome::Skipped)} skipped"
+  end
+
+  # Writes lint findings, one per line, and a summary.
+  def self.render(findings : Array(LintFinding), io : IO) : Nil
+    findings.each { |finding| io.puts "#{finding.location.ljust(48)} #{lint_line(finding)}" }
+    errors = findings.count(&.level.error?)
+    io.puts "#{findings.size} findings: #{errors} error, #{findings.size - errors} advice"
+  end
+
+  def self.lint_line(finding : LintFinding) : String
+    "#{finding.level.to_s.downcase.ljust(6)} #{finding.check.name} (#{finding.field}): #{finding.message}"
+  end
+
+  def self.calibration(report : RuleReport) : String
+    calibration = report.calibration
+    usual = calibration.usual
+    return "calibration: fewer than #{Calibration::MIN_CLOSE} close siblings" if usual.nil? || calibration.close < Calibration::MIN_CLOSE
+
+    text = "calibration: #{calibration.usual_count} of #{calibration.close} close siblings are #{usual}"
+    calibration.outlier? ? "#{text}; OUTLIER" : text
   end
 
   # Writes one ad hoc assessment.

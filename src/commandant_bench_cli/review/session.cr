@@ -14,6 +14,7 @@ module Commandant::Bench::CLI::Review
     @listing = [] of RulesetRef
     @ruleset : RulesetRef? = nil
     @reports = [] of RuleReport
+    @findings = [] of LintFinding
     @index : Int32? = nil
     @problems_only = false
     @platform = TargetPlatform::Linux
@@ -59,6 +60,7 @@ module Commandant::Bench::CLI::Review
       when "problems" then toggle_problems
       when "try"      then try(rest)
       when "platform" then set_platform(rest)
+      when "siblings" then show_siblings
       when "help"     then @display.show(Views::HELP)
       else
         number = command.to_i? || raise ArgumentError.new("Unknown command `#{command}`. Type `help`.")
@@ -101,6 +103,7 @@ module Commandant::Bench::CLI::Review
 
     private def open_ruleset(ref : RulesetRef, show = true) : Nil
       @reports = @bench.report(ref)
+      @findings = @bench.lint(ref)
       @ruleset = ref
       @index = nil
       show_ruleset if show
@@ -128,12 +131,17 @@ module Commandant::Bench::CLI::Review
     private def show_ruleset : Nil
       ruleset = @ruleset || raise ArgumentError.new("Open a ruleset first")
       @index = nil
-      @display.show(Views.ruleset_summary(ruleset, @reports))
+      @display.show(Views.ruleset_summary(ruleset, @reports, @findings))
     end
 
     private def show_rule(index : Int32) : Nil
       @index = index
       @display.show(Views.rule_card(@reports[index], index + 1, @reports.size, @problems_only))
+    end
+
+    private def show_siblings : Nil
+      index = @index || raise ArgumentError.new("Open a rule first")
+      @display.show(Views.siblings(@reports[index]))
     end
 
     private def toggle_problems : Nil
