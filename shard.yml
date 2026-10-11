@@ -1,0 +1,25 @@
+name: commandant_bench
+version: 0.1.0
+license: MPL2
+description: |
+  Review bench for commandant rulesets. Runs rules against examples and
+  generated variants through the real engine so reviewers judge behaviour,
+  not JSON.
+
+crystal: ">= 1.20.0"
+
+authors:
+  - nogginly <nogginly@icloud.com>
+
+dependencies:
+  commandant:
+    github: modelarmy/commandant.cr
+    branch: main
+
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+
+targets:
+  commandant-bench:
+    main: src/bench_main.cr

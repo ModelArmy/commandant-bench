@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, crystal: latest }
+          - { os: macos-latest, crystal: latest }
+          - { os: windows-latest, crystal: latest }
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: ${{ matrix.crystal }}
+
+      - name: Cache shards
+        uses: actions/cache@v5
+        with:
+          path: |
+            lib
+            bin/ameba*
+          key: ${{ matrix.os }}-shards-${{ hashFiles('**/shard.lock') }}
+
+      - name: Install shards
+        run: shards check || shards install
+
+      - name: Run tests
+        run: crystal spec
+
+      - name: Check formatting (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: crystal tool format --check src spec
+
+      - name: Build ameba (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: mkdir -p bin && cp lib/ameba/bin/ameba.cr bin && crystal build -o bin/ameba bin/ameba.cr
+
+      - name: Run static code analysis (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: bin/ameba src/ spec/
+
+      - name: Build release
+        shell: bash
+        run: mkdir -p bin/release && SHARDS_BIN_PATH=bin/release shards --production build --release
+
+      - name: Smoke test binary
+        shell: bash
+        run: bin/release/commandant-bench version | grep "commandant-bench"

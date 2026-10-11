@@ -1,0 +1,218 @@
+# Bench Design
+
+**Status:** draft for review. Nothing here is implemented beyond the scaffolding.
+
+## 1. Purpose
+
+A ruleset reviewer must answer four questions about every rule:
+
+   |Question                 |What it asks                                                               
+---|-------------------------|---------------------------------------------------------------------------
+Q-a|True?                    |Are the description and claimed behaviour right for the tool version cited?
+Q-b|Catches the right things?|Does the rule fire on the commands it should, and only those?              
+Q-c|Calibrated?              |Is its severity consistent with similar rules across the corpus?           
+Q-d|Honest?                  |Do its `notes` admit the gaps it has?                                      
+
+Q-b and Q-c are where review time goes, and both are hard to answer by reading JSON. The bench answers their mechanical parts by running commands through the real engine and comparing rules across the corpus. The reviewer judges results instead of imagining them.
+
+## 2. Architecture
+
+```mermaid
+flowchart TD
+    subgraph P["Presentation (replaceable)"]
+        TUI["TUI"]
+        WEB["Web UI (later)"]
+        CI["CI report (later)"]
+    end
+    API["Bench API: operations + JSON-serialisable result types"]
+    subgraph C["Bench core"]
+        LINT["Lint"]
+        GEN["Variant and combination generators"]
+        RUN["Runner"]
+        SIB["Calibration"]
+        SIGN["Sign-off store"]
+    end
+    ENG["commandant engine"]
+    RULES["Ruleset corpus"]
+
+    TUI --> API
+    WEB --> API
+    CI --> API
+    API --> LINT & GEN & RUN & SIB & SIGN
+    GEN --> RUN
+    RUN --> ENG --> RULES
+    LINT --> RULES
+    SIB --> RULES
+    SIGN --> RULES
+```
+
+The API is in-process Crystal. A web UI later wraps the same calls in an HTTP server that returns the result types as JSON. The core never writes to a terminal.
+
+## 3. API operations
+
+```crystal
+bench = Commandant::Bench::Bench.new(rulesets: Path["../commandant-rules-core/rulesets"])
+
+bench.rulesets                          # => Array(RulesetRef)
+bench.report(rule)                      # => RuleReport: rows, combinations, lint, siblings, status
+bench.try("rm -Rf build/", platform)    # => TryResult: one ad hoc command
+bench.siblings(rule)                    # => Array(SiblingRule)
+bench.lint(ruleset)                     # => Array(LintFinding)
+bench.sign_off(rule, reviewer, answers) # => SignOff
+bench.status(rule)                      # => ReviewStatus
+```
+
+`RulesetRef` names a ruleset file by folder and tool (`posix/rm`). `RuleRef` adds a rule id (`posix/rm#rm-recursive-force`), or `#default` for the default rule.
+
+## 4. Result types
+
+Type          |Fields                                                                                     
+--------------|-------------------------------------------------------------------------------------------
+`RuleReport`  |`rule`, `rule_hash`, `rows`, `combinations`, `lint`, `siblings`, `status`, `engine_version`
+`BenchRow`    |`command`, `origin`, `subject`, `expectation`, `actual`, `outcome`                         
+`Origin`      |`example` (index) \| `variant` (kind, parent example) \| `combination` (flags)             
+`Subject`     |`rule` \| `engine`: which component a miss on this row implicates                          
+`Expectation` |`fires` \| `does_not_fire` \| `at_least` (severity)                                        
+`Actual`      |`fired_rules`, `severity`, `default_kind`, `resolved_ruleset`, `tool_known`                
+`Outcome`     |`ok` \| `miss` \| `false_alarm` \| `skipped` (with reason)                                 
+`SiblingRule` |`rule`, `risk_tags`, `severity`, `reversible`, `overlap`                                   
+`LintFinding` |`rule`, `field`, `check`, `message`                                                        
+`ReviewStatus`|`unreviewed` \| `current` (sign-off) \| `lapsed` (sign-off, current hash)                  
+
+All types include `JSON::Serializable`.
+
+### A row checks this rule, not the verdict
+
+A row's outcome depends on whether *this rule* is among `fired_rules`, not on the final severity. Otherwise a different rule firing at ERROR would hide this rule's miss. The exception is `at_least` rows (section 5), which test the engine's handling of wrappers, where another ruleset legitimately takes over.
+
+## 5. Rows: examples and variants
+
+1. **Examples** come from the rule's `examples` (section 8.1): commands it should fire on and commands it should not. Subject: `rule`.
+2. **Variants** are generated from each `fires` example. Each kind has a fixed subject and expectation:
+
+Kind        |Example transform                     |Subject|Expectation|Needs               
+------------|--------------------------------------|-------|-----------|--------------------
+`reorder`   |`rm -r -f x` → `rm -f -r x`           |rule   |fires      |—                   
+`split`     |`rm -rf x` → `rm -r -f x`             |rule   |fires      |—                   
+`combine`   |`rm -r -f x` → `rm -rf x`             |rule   |fires      |—                   
+`alias`     |`rm -r x` → `rm -R x`                 |rule   |fires      |flag declaration    
+`long`      |`rm -r x` → `rm --recursive x`        |rule   |fires      |flag declaration    
+`abbrev`    |`rm --recursive x` → `rm --recur x`   |rule   |fires      |flag declaration    
+`quote`     |`rm -rf build` → `rm -rf 'build'`     |engine |fires      |—                   
+`env-prefix`|`rm -rf x` → `FOO=1 rm -rf x`         |engine |fires      |—                   
+`abs-path`  |`rm -rf x` → `/bin/rm -rf x`          |engine |fires      |—                   
+`exe-suffix`|`rm -rf x` → `rm.exe -rf x` (Windows) |engine |fires      |tool runs on Windows
+`cmd-exe`   |same command, `Platform::Windows::Cmd`|engine |fires      |tool runs on Windows
+`compound`  |`rm -rf x` → `cd y && rm -rf x`       |engine |at_least   |—                   
+`sudo`      |`rm -rf x` → `sudo rm -rf x`          |engine |at_least   |—                   
+`shell-wrap`|`rm -rf x` → `sh -c 'rm -rf x'`       |engine |at_least   |—                   
+
+A kind whose data is missing is reported as `skipped` with the reason, never silently omitted. A visible gap is part of the review.
+
+The `subject` routes findings: a miss on a `rule` row is a ruleset fix; a miss on an `engine` row is a `commandant.cr` fix that no ruleset edit can solve.
+
+## 6. Combination bench
+
+For a ruleset's declared flags, the bench generates every pair and records which rules fire and the resulting severity. A combination is `novel` when it fires a rule that neither flag fires alone. The core returns all pairs; presentation decides how to filter and sort. Thirty flags give 435 pairs, which is cheap to compute.
+
+The reviewer's question is: which pairs are dangerous together but resolve only to their individual rules, or to the baseline default?
+
+## 7. Runner
+
+1. **Fresh `Assessor` per row.** `PersistenceTracker` keeps state across `assess` calls; reusing an assessor would make later rows depend on earlier ones.
+2. **The ruleset under review is the one evaluated.** Resolution is first-match-wins, so assessing `posix/rm.json` on a Linux platform would load `linux/rm.json` if it existed. `rule`-subject rows therefore run against a store containing only the file under review. `engine`-subject rows run against the full corpus, since that is what users get, and record `resolved_ruleset`.
+3. **Constraints are neutralised.** `allowed_tools` contains the tool under review plus any wrapper the variant adds; `sandbox_root` is a fixed fake root. Constraint violations are recorded but do not affect the outcome.
+
+## 8. Engine and schema dependencies
+
+The bench is useful before these land; the dependent parts report `skipped` until then.
+
+### 8.1. Per-rule examples (rules-core schema)
+
+```json
+"examples": {
+  "fires": ["rm -rf build/", "rm -r -f build/"],
+  "does_not_fire": ["rm -f notes.txt"]
+}
+```
+
+Rules and the default rule both carry `examples`. The per-pattern `example` field is removed; until migration, the bench reads it as a single `fires` example.
+
+### 8.2. Flag declaration and the split default (engine + schema)
+
+```json
+"flags": {
+  "-r": { "aliases": ["-R", "--recursive"], "takes_value": false },
+  "-f": { "aliases": ["--force"], "takes_value": false },
+  "-i": { "aliases": [], "takes_value": false }
+},
+"subcommands": [],
+"unrecognised_severity": "ERROR"
+```
+
+1. `flags` lists every flag the ruleset knows, with aliases and arity. It subsumes `option_abbreviations`, which is removed.
+2. If no rule fires and every flag and subcommand is declared, the **baseline** default applies (today's `default_rule`).
+3. If any flag or subcommand is undeclared, the **unrecognised** default applies, at `WARNING` globally unless the ruleset overrides it with `unrecognised_severity`.
+4. `AssessmentResponse` reports `default_kind` (`none`, `baseline`, `unrecognised`) and the undeclared tokens.
+5. `unknown_flags` (the drafting model's uncertainty notes) is removed.
+
+## 9. Calibration
+
+Siblings of a rule are rules anywhere in the corpus whose `risk_tags` overlap it. The report shows them with severity and reversibility, and marks the rule as an outlier when its severity differs from the most common severity among close siblings. The reviewer decides whether the outlier is justified.
+
+## 10. Lint
+
+Mechanical checks from `RULESET_REVIEW_GUIDE.md`, plus checks the bench makes possible:
+
+1. `id` follows `{tool}-{risk-summary}`, lowercase, hyphenated.
+2. `pattern` is Semgrep-style, not regex.
+3. `match` is non-empty; `reversible: depends` has a `reversible_note`.
+4. `default_rule` is not duplicated among `rules`.
+5. Every rule has at least one `fires` example.
+6. Every flag named in a `match` is declared in `flags`.
+7. No rule contains duplicate patterns.
+
+## 11. Sign-off store
+
+Sign-offs live in `commandant-rules-core` beside the rulesets, at `reviews/<folder>/<tool>.json`:
+
+```json
+{
+  "rm-recursive-force": {
+    "rule_hash": "sha256:…",
+    "reviewer": "nogginly",
+    "date": "2026-10-11",
+    "engine_version": "0.5.3",
+    "answers": { "true": "pass", "catches": "pass", "calibrated": "pass", "honest": "pass" },
+    "note": "",
+    "bench": { "rows": 14, "misses": 0, "skipped": 2 }
+  }
+}
+```
+
+`rule_hash` is the SHA-256 of the rule's canonical JSON (sorted keys, no whitespace). Editing the rule changes the hash and the status becomes `lapsed`. A new engine version does not lapse a sign-off; `engine_version` is recorded for context.
+
+## 12. Presentation
+
+The TUI comes first, as a client of the API:
+
+1. **Ruleset list:** tools with counts of rules by status.
+2. **Rule card:** summary, rows table with misses highlighted, siblings, lint findings, and the four questions with sign-off.
+3. **Try box:** type a command, see `TryResult` immediately.
+
+A plain-text `report` subcommand precedes the TUI and remains useful for scripts and CI.
+
+## 13. Milestones
+
+1. **M1. Runner and report.** Load rulesets, read examples, generate variants that need no flag declaration, run them, and print a text report via `commandant-bench report posix/rm#rm-recursive-force`. Pilot on `rm`.
+2. **M2. TUI.**
+3. **M3. Lint and calibration.**
+4. **M4. Sign-off store.**
+5. **M5. Engine: flag declaration and split default** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
+6. **M6. Corpus migration** to `examples` and `flags`, reviewed with the bench.
+
+## 14. Open decisions
+
+- **D3. Examples inline in each rule, or in a separate file per tool?** Recommended: inline (section 8.1).
+- **D9. Sign-off location:** `reviews/` beside the rulesets (section 11), or inside each ruleset file?
+- **D10. TUI library:** to choose at M2.

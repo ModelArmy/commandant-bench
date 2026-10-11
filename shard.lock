@@ -1,0 +1,10 @@
+version: 2.0
+shards:
+  ameba:
+    git: https://github.com/crystal-ameba/ameba.git
+    version: 1.7.0
+
+  commandant:
+    git: https://github.com/modelarmy/commandant.cr.git
+    version: 0.5.3+git.commit.9618872f96967f76a89b4f17f8db8378034be1e0
+
