@@ -247,9 +247,11 @@ Views are pure functions from bench results to Markdown; the session holds navig
 5. **M5. Engine: flag declaration and the unrecognised-flag check** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
 6. **M6. Corpus migration** to `examples` and `flags`, reviewed with the bench.
 
+M6 comes before M5's engine work, so every ruleset is edited once: the schema is agreed first, the corpus migrates with all new fields together, and the engine then reads fields already present. The engine tolerates the added fields today and needs only each pattern's `example` made optional first. Outstanding items per repository are tracked in each repository's `SCOPE.md`.
+
 ## 14. Open decisions
 
-- **D3. Examples inline in each rule, or in a separate file per tool?** Recommended: inline (section 8.1).
+- **D3. Examples:** decided: inline in each rule (section 8.1).
 - **D9. Sign-off location:** decided: a `reviews/` tree beside the rulesets (section 11).
 - **D10. TUI library:** decided: Termify for rendering, line-based input, no windowing.
 - **D11. Unrecognised flags:** decided: a separate check on every command, combined by highest severity, not a fallback default (section 8.2).
