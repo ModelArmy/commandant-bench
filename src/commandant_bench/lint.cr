@@ -152,7 +152,7 @@ module Commandant::Bench
       bare.fired_rules.each do |rule_id|
         add.call(rule_id, "patterns", LintCheck::FiresOnBareCommand, LintLevel::Advice,
           "catch-all: fires on the bare command `#{ruleset.tool}`, so the default rule never applies; " \
-          "nor will an unrecognised-flag default (BENCH_DESIGN.md section 8.2)")
+          "if its severity matches the default, retire it")
       end
     end
 

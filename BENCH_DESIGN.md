@@ -148,7 +148,7 @@ The bench is useful before these land; the dependent parts report `skipped` unti
 
 Rules and the default rule both carry `examples`. The per-pattern `example` field is removed; until migration, the bench reads it as a single `fires` example.
 
-### 8.2. Flag declaration and the split default (engine + schema)
+### 8.2. Flag declaration and the unrecognised-flag check (engine + schema)
 
 ```json
 "flags": {
@@ -161,10 +161,13 @@ Rules and the default rule both carry `examples`. The per-pattern `example` fiel
 ```
 
 1. `flags` lists every flag the ruleset knows, with aliases and arity. It subsumes `option_abbreviations`, which is removed.
-2. If no rule fires and every flag and subcommand is declared, the **baseline** default applies (today's `default_rule`).
-3. If any flag or subcommand is undeclared, the **unrecognised** default applies, at `WARNING` globally unless the ruleset overrides it with `unrecognised_severity`.
-4. `AssessmentResponse` reports `default_kind` (`none`, `baseline`, `unrecognised`) and the undeclared tokens.
-5. `unknown_flags` (the drafting model's uncertainty notes) is removed.
+2. The **unrecognised-flag check** runs on every command, alongside the rules. If any flag or subcommand is undeclared, it contributes `WARNING`, or the ruleset's `unrecognised_severity`.
+3. The verdict is the highest severity among the rules that fired and the check. `rm -rf --new-flag x` stays ERROR; `apk --new-flag foo` rises from INFO to WARNING.
+4. If no rule fires and the check finds nothing, the **baseline** default applies (today's `default_rule`).
+5. `AssessmentResponse` reports the undeclared tokens and whether the baseline default applied.
+6. `unknown_flags` (the drafting model's uncertainty notes) is removed.
+
+The check is a separate signal rather than a fallback default, because a fallback only runs when no rule fires. Any matching rule would hide unknown flags: `rm -i --new-flag file` fires `rm-interactive`, and a catch-all rule such as `apk-package-management` (`^apk(\s|$)`) fires on every invocation. Lint flags such catch-alls (section 10); most restate the default rule's severity and can be retired.
 
 ## 9. Calibration
 
@@ -191,7 +194,7 @@ Each check has a level. An **error** is a defect; **advice** asks the reviewer t
 |`missing-mitre`           |error |`mitre_attack` is absent; `[]` is the explicit "none applies"            |
 |`missing-example`         |error |a rule has no example it should fire on                                  |
 |`example-wrong-binary`    |error |an example runs a different binary, e.g. `find … \| xargs rm` in `xargs` |
-|`fires-on-bare-command`   |advice|a catch-all rule fires on the bare tool, so the default rule never applies, nor will an unrecognised-flag default (section 8.2)|
+|`fires-on-bare-command`   |advice|a catch-all rule fires on the bare tool, so the default rule never applies; most restate the default and can be retired|
 |`undeclared-flag`         |error |a match names a flag missing from `flags` (only once `flags` exists)     |
 
 Default rules without examples are not flagged until the corpus migrates to `examples` (M6); today every default would fail.
@@ -237,7 +240,7 @@ Views are pure functions from bench results to Markdown; the session holds navig
 2. **M2. Interactive review.** The `review` subcommand (section 12).
 3. **M3. Lint and calibration.** The `lint` subcommand, lint and calibration on every report and rule card, and `siblings` in `review`.
 4. **M4. Sign-off store.**
-5. **M5. Engine: flag declaration and split default** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
+5. **M5. Engine: flag declaration and the unrecognised-flag check** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
 6. **M6. Corpus migration** to `examples` and `flags`, reviewed with the bench.
 
 ## 14. Open decisions
@@ -245,3 +248,4 @@ Views are pure functions from bench results to Markdown; the session holds navig
 - **D3. Examples inline in each rule, or in a separate file per tool?** Recommended: inline (section 8.1).
 - **D9. Sign-off location:** `reviews/` beside the rulesets (section 11), or inside each ruleset file?
 - **D10. TUI library:** decided: Termify for rendering, line-based input, no windowing.
+- **D11. Unrecognised flags:** decided: a separate check on every command, combined by highest severity, not a fallback default (section 8.2).
