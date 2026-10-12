@@ -117,6 +117,6 @@ describe "Workbench sign-off" do
   end
 
   it "keeps reviews beside the ruleset tree by default" do
-    Bench::Workbench.new(Path["/data/rules/rulesets"]).reviews.root.should eq(Path["/data/rules/reviews"])
+    Bench::Workbench.new(Path["/data/rules/rulesets"]).reviews.root.to_posix.to_s.should eq("/data/rules/reviews")
   end
 end
