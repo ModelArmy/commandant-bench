@@ -1,13 +1,14 @@
 require "./spec_helper"
+require "./sign_off_spec"
 require "../src/commandant_bench_cli/review/session"
 
 private alias Review = Commandant::Bench::CLI::Review
 
-private def transcript(*lines : String, start : String? = nil) : String
+private def transcript(*lines : String, start : String? = nil, bench = Commandant::Bench::Workbench.new(RULESETS_PATH),
+                       reviewer : String? = nil) : String
   input = IO::Memory.new(lines.join("\n") + "\n")
   output = IO::Memory.new
-  bench = Commandant::Bench::Workbench.new(RULESETS_PATH)
-  Review::Session.new(bench, Review::PlainDisplay.new(input, output)).run(start)
+  Review::Session.new(bench, Review::PlainDisplay.new(input, output), reviewer).run(start)
   output.to_s
 end
 
@@ -67,6 +68,31 @@ describe Review::Session do
     output.should contain("## Siblings of posix/zap#zap-force · WARNING")
     output.should contain("| posix/zap#zap-recursive-force | ERROR |")
     output.should contain("Calibration: fewer than 5 close siblings.")
+  end
+
+  it "signs off a rule after asking the four questions" do
+    with_scratch_tree do |rulesets, reviews|
+      bench = Commandant::Bench::Workbench.new(rulesets, reviews)
+      output = transcript("signoff", "y", "maybe", "y", "n", "y", "severity looks low", "rules", "quit",
+        start: "posix/zap#zap-force", bench: bench, reviewer: "nogginly")
+      output.should contain("Answer `y`, `n` or `cancel`.")
+      output.should contain("Review: **changes requested** by @nogginly")
+      output.should contain(": calibrated. Note: severity looks low")
+      output.lines.find!(&.starts_with?("| 3 | zap-force |")).should end_with("| changes-requested |")
+    end
+  end
+
+  it "records nothing when a sign-off is cancelled" do
+    with_scratch_tree do |rulesets, reviews|
+      bench = Commandant::Bench::Workbench.new(rulesets, reviews)
+      output = transcript("signoff", "y", "cancel", "quit", start: "posix/zap#zap-force", bench: bench, reviewer: "nogginly")
+      output.should contain("Sign-off cancelled; nothing recorded.")
+      Dir.exists?(reviews).should be_false
+    end
+  end
+
+  it "explains how to set a reviewer handle" do
+    transcript("signoff", "quit", start: "posix/zap#zap-force").should contain("git config --global github.user")
   end
 
   it "assesses a command on the chosen platform" do

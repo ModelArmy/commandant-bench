@@ -27,27 +27,28 @@ Command                        |Description
 
 The core, in `src/commandant_bench/`:
 
-|File                 |Contents                                                               |
-|---------------------|-----------------------------------------------------------------------|
-|`workbench.cr`       |`Workbench`, the API entry point, and row judging                      |
-|`runner.cr`          |Runs one command through a fresh `Commandant::Assessor`                |
-|`variants.cr`        |`VariantKind` and the variant generator                                |
-|`examples.cr`        |Reads a rule's examples from ruleset JSON                              |
-|`lint.cr`            |`Lint` checks and `LintFinding`                                        |
-|`calibration.cr`     |`CalibrationIndex`: siblings and outliers by shared risk tags          |
-|`row.cr`, `report.cr`|Result types                                                           |
-|`refs.cr`            |`RulesetRef` and `RuleRef`                                             |
-|`target_platform.cr` |Platforms and shells a command can be assessed on                      |
+File                 |Contents                                                     
+---------------------|-------------------------------------------------------------
+`workbench.cr`       |`Workbench`, the API entry point, and row judging            
+`runner.cr`          |Runs one command through a fresh `Commandant::Assessor`      
+`variants.cr`        |`VariantKind` and the variant generator                      
+`examples.cr`        |Reads a rule's examples from ruleset JSON                    
+`lint.cr`            |`Lint` checks and `LintFinding`                              
+`calibration.cr`     |`CalibrationIndex`: siblings and outliers by shared risk tags
+`sign_off.cr`        |Sign-off types, `RuleHash` and the `ReviewStore`             
+`row.cr`, `report.cr`|Result types                                                 
+`refs.cr`            |`RulesetRef` and `RuleRef`                                   
+`target_platform.cr` |Platforms and shells a command can be assessed on            
 
 The presentation, in `src/commandant_bench_cli/`:
 
-|File                 |Contents                                                               |
-|---------------------|-----------------------------------------------------------------------|
-|`cli.cr`             |Argument parsing and subcommand dispatch                               |
-|`text_report.cr`     |Plain-text rendering for `report` and `try`                            |
-|`review/session.cr`  |The interactive `review` loop and its commands                         |
-|`review/views.cr`    |Markdown for each review screen, as pure functions                     |
-|`review/display.cr`  |Terminal (Termify) and plain displays                                  |
+File               |Contents                                          
+-------------------|--------------------------------------------------
+`cli.cr`           |Argument parsing and subcommand dispatch          
+`text_report.cr`   |Plain-text rendering for `report` and `try`       
+`review/session.cr`|The interactive `review` loop and its commands    
+`review/views.cr`  |Markdown for each review screen, as pure functions
+`review/display.cr`|Terminal (Termify) and plain displays             
 
 The repository:
 
@@ -58,8 +59,8 @@ Path                       |Contents
 `src/commandant_bench_cli/`|`Commandant::Bench::CLI`: argument parsing and presentation for the binary
 `src/bench_main.cr`        |Executable entry point; calls `CLI.run(ARGV)` and exits                   
 `spec/`                    |Specs, using the Crystal standard library `spec`                          
-`spec/fixtures/rulesets/`  |A small ruleset tree; `zap` has deliberately brittle and wrong rules
-`spec/fixtures/lint/`      |`bait`, a ruleset where each rule breaks one lint check
+`spec/fixtures/rulesets/`  |A small ruleset tree; `zap` has deliberately brittle and wrong rules      
+`spec/fixtures/lint/`      |`bait`, a ruleset where each rule breaks one lint check                   
 
 ### Presentation stays outside the core
 

@@ -6,6 +6,7 @@ module Commandant::Bench
     include JSON::Serializable
 
     getter rule : RuleRef
+    getter rule_hash : String
     getter description : String
     @[JSON::Field(converter: Commandant::Severity)]
     getter severity : Commandant::Severity
@@ -17,9 +18,16 @@ module Commandant::Bench
     getter rows : Array(BenchRow)
     getter lint : Array(LintFinding)
     getter calibration : Calibration
+    getter review : ReviewStatus
 
-    def initialize(@rule, @description, @severity, @reversible, @risk_tags, @notes,
-                   @examples_from_patterns, @engine_version, @rows, @lint, @calibration)
+    def initialize(@rule, @rule_hash, @description, @severity, @reversible, @risk_tags, @notes,
+                   @examples_from_patterns, @engine_version, @rows, @lint, @calibration, @review)
+    end
+
+    # A copy of this report with *review* in place of its review status.
+    def with_review(review : ReviewStatus) : RuleReport
+      RuleReport.new(@rule, @rule_hash, @description, @severity, @reversible, @risk_tags, @notes,
+        @examples_from_patterns, @engine_version, @rows, @lint, @calibration, review)
     end
 
     def count(outcome : Outcome) : Int32

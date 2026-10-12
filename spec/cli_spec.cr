@@ -86,6 +86,13 @@ describe Commandant::Bench::CLI do
     output.should contain("0 error")
   end
 
+  it "reports review status per rule" do
+    status, output, _ = run_cli(with_rulesets(["status", "posix/zap", "--reviews", (FIXTURES_PATH / "no-reviews").to_s]))
+    status.should eq(0)
+    output.should contain("posix/zap#zap-force")
+    output.should contain("4 rules: 4 unreviewed, 0 approved, 0 changes-requested, 0 lapsed")
+  end
+
   it "exits 1 for an unknown platform" do
     status, _, errors = run_cli(with_rulesets(["try", "zap x", "--platform", "plan9"]))
     status.should eq(1)

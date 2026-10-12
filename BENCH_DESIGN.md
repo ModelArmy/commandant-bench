@@ -1,6 +1,6 @@
 # Bench Design
 
-**Status:** M1–M3 implemented (sections 3–5, 7, 9, 10 and 12, without combinations); later milestones are design only.
+**Status:** M1–M4 implemented (sections 3–5, 7 and 9–12, without combinations); later milestones are design only.
 
 ## 1. Purpose
 
@@ -64,26 +64,27 @@ bench.report(ruleset)                   # => Array(RuleReport), one per rule    
 bench.try("rm -Rf build/", platform)    # => Actual: one ad hoc command             M1
 bench.calibration(rule)                 # => Calibration, with siblings             M3
 bench.lint(ruleset)                     # => Array(LintFinding); bench.lint for all  M3
-bench.sign_off(rule, reviewer, answers) # => SignOff                                M4
-bench.status(rule)                      # => ReviewStatus                           M4
+bench.sign_off(report, reviewer, answers) # => SignOff, recorded in the review store M4
+bench.status(rule)                      # => ReviewStatus; bench.statuses(ruleset)  M4
 ```
 
 `RulesetRef` names a ruleset file by folder and tool (`posix/rm`). `RuleRef` adds a rule id (`posix/rm#rm-recursive-force`), or `#default` for the default rule.
 
 ## 4. Result types
 
-Type          |Fields                                                                                     
---------------|-------------------------------------------------------------------------------------------
-`RuleReport`  |`rule`, `rule_hash`, `rows`, `combinations`, `lint`, `siblings`, `status`, `engine_version`
-`BenchRow`    |`command`, `origin`, `subject`, `expectation`, `actual`, `outcome`                         
-`Origin`      |`example` (index) \| `variant` (kind, parent example) \| `combination` (flags)             
-`Subject`     |`rule` \| `engine`: which component a miss on this row implicates                          
-`Expectation` |`fires` \| `does_not_fire` \| `at_least` (severity)                                        
-`Actual`      |`fired_rules`, `severity`, `default_kind`, `resolved_ruleset`, `tool_known`                
-`Outcome`     |`ok` \| `miss` \| `false_alarm` \| `skipped` (with reason)                                 
-`SiblingRule` |`rule`, `risk_tags`, `severity`, `reversible`, `overlap`                                   
-`LintFinding` |`rule`, `field`, `check`, `message`                                                        
-`ReviewStatus`|`unreviewed` \| `current` (sign-off) \| `lapsed` (sign-off, current hash)                  
+Type          |Fields                                                                                                                                                             
+--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+`RuleReport`  |`rule`, `rule_hash`, `description`, `severity`, `reversible`, `risk_tags`, `notes`, `rows`, `lint`, `calibration`, `review`, `engine_version`; later `combinations`
+`BenchRow`    |`command`, `origin`, `subject`, `expectation`, `actual`, `outcome`                                                                                                 
+`Origin`      |`example` (index) \| `variant` (kind, parent example) \| `combination` (flags)                                                                                     
+`Subject`     |`rule` \| `engine`: which component a miss on this row implicates                                                                                                  
+`Expectation` |`fires` \| `does_not_fire` \| `at_least` (severity)                                                                                                                
+`Actual`      |`platform`, `binary`, `tool_known`, `ruleset_tool`, `fired_rules`, `severity`, `default_kind`, `resolved_ruleset`                                                  
+`Outcome`     |`ok` \| `miss` \| `false_alarm` \| `skipped` (with reason)                                                                                                         
+`Calibration` |`siblings`, `close`, `usual`, `usual_count`, `outlier`                                                                                                             
+`SiblingRule` |`rule`, `risk_tags`, `severity`, `reversible`, `overlap`                                                                                                           
+`LintFinding` |`ruleset`, `rule_id`, `field`, `check`, `level` (`error` \| `advice`), `message`                                                                                   
+`ReviewStatus`|`state` (`unreviewed` \| `approved` \| `changes-requested` \| `lapsed`), `sign_off`                                                                                
 
 All types include `JSON::Serializable`. Severities serialise as written in rulesets (`ERROR`).
 
@@ -181,27 +182,27 @@ An outlier says that severity or tags disagree with the corpus, not which is wro
 
 Each check has a level. An **error** is a defect; **advice** asks the reviewer to look and may be justified. `commandant-bench lint` exits 1 on any error, so CI can gate on it.
 
-|Check                     |Level |Finds                                                                    |
-|--------------------------|------|-------------------------------------------------------------------------|
-|`tool-matches-file`       |error |`tool` differs from the file name                                        |
-|`platform-matches-folder` |error |`platform` differs from the folder                                       |
-|`id-convention`           |advice|id is not `{tool}-{risk-summary}`, lowercase and hyphenated (dots in the tool become hyphens)|
-|`pattern-looks-like-regex`|advice|`pattern` uses regex syntax instead of Semgrep style                     |
-|`empty-match`             |error |a pattern's `match` has no criteria                                      |
-|`duplicate-pattern`       |error |two patterns in one rule have identical matches                          |
-|`depends-without-note`    |error |a rule is `depends` without `reversible_note`                            |
-|`depends-without-note`    |advice|the default rule is `depends`; the schema gives it no note field         |
-|`missing-mitre`           |error |`mitre_attack` is absent; `[]` is the explicit "none applies"            |
-|`missing-example`         |error |a rule has no example it should fire on                                  |
-|`example-wrong-binary`    |error |an example runs a different binary, e.g. `find … \| xargs rm` in `xargs` |
-|`fires-on-bare-command`   |advice|a catch-all rule fires on the bare tool, so the default rule never applies; most restate the default and can be retired|
-|`undeclared-flag`         |error |a match names a flag missing from `flags` (only once `flags` exists)     |
+Check                     |Level |Finds                                                                                                                  
+--------------------------|------|-----------------------------------------------------------------------------------------------------------------------
+`tool-matches-file`       |error |`tool` differs from the file name                                                                                      
+`platform-matches-folder` |error |`platform` differs from the folder                                                                                     
+`id-convention`           |advice|id is not `{tool}-{risk-summary}`, lowercase and hyphenated (dots in the tool become hyphens)                          
+`pattern-looks-like-regex`|advice|`pattern` uses regex syntax instead of Semgrep style                                                                   
+`empty-match`             |error |a pattern's `match` has no criteria                                                                                    
+`duplicate-pattern`       |error |two patterns in one rule have identical matches                                                                        
+`depends-without-note`    |error |a rule is `depends` without `reversible_note`                                                                          
+`depends-without-note`    |advice|the default rule is `depends`; the schema gives it no note field                                                       
+`missing-mitre`           |error |`mitre_attack` is absent; `[]` is the explicit "none applies"                                                          
+`missing-example`         |error |a rule has no example it should fire on                                                                                
+`example-wrong-binary`    |error |an example runs a different binary, e.g. `find … \| xargs rm` in `xargs`                                               
+`fires-on-bare-command`   |advice|a catch-all rule fires on the bare tool, so the default rule never applies; most restate the default and can be retired
+`undeclared-flag`         |error |a match names a flag missing from `flags` (only once `flags` exists)                                                   
 
 Default rules without examples are not flagged until the corpus migrates to `examples` (M6); today every default would fail.
 
 ## 11. Sign-off store
 
-Sign-offs live in `commandant-rules-core` beside the rulesets, at `reviews/<folder>/<tool>.json`:
+Sign-offs live in a tree that mirrors the rulesets, by default a `reviews` folder beside them, so the sign-offs for `rulesets/posix/rm.json` are in `reviews/posix/rm.json`. A review never edits a ruleset file. Entries are keyed by rule id and written sorted, so the file diffs cleanly:
 
 ```json
 {
@@ -210,25 +211,28 @@ Sign-offs live in `commandant-rules-core` beside the rulesets, at `reviews/<fold
     "reviewer": "nogginly",
     "date": "2026-10-11",
     "engine_version": "0.5.3",
-    "answers": { "true": "pass", "catches": "pass", "calibrated": "pass", "honest": "pass" },
+    "answers": { "accurate": "pass", "catches": "pass", "calibrated": "pass", "honest": "pass" },
     "note": "",
-    "bench": { "rows": 14, "misses": 0, "skipped": 2 }
+    "bench": { "rows": 14, "misses": 0, "false_alarms": 0, "skipped": 2 }
   }
 }
 ```
 
-`rule_hash` is the SHA-256 of the rule's canonical JSON (sorted keys, no whitespace). Editing the rule changes the hash and the status becomes `lapsed`. A new engine version does not lapse a sign-off; `engine_version` is recorded for context.
+1. **`answers`** record Q-a to Q-d as `pass` or `fail`. A sign-off with any `fail` is a request for changes, not an approval.
+2. **`rule_hash`** is the SHA-256 of canonical JSON (sorted keys, no whitespace) of the rule's object together with the ruleset fields that change how every rule matches: `option_abbreviations`, `flags`, `subcommands`, `unrecognised_severity` and `is_multiplexer`. Editing either changes the hash.
+3. **The state** follows from the sign-off and the current hash: `unreviewed` without a sign-off, `lapsed` when the hash differs, otherwise `approved` or `changes-requested`. A new engine version does not lapse a sign-off; `engine_version` and `bench` are recorded for context.
+4. **`reviewer`** is a handle, not a name. The CLI takes `--reviewer`, else `git config github.user`, and refuses to sign off without one.
 
 ## 12. Presentation
 
 The `review` subcommand is an interactive session that asks and scrolls rather than drawing windows. The reviewer types a command; the session answers with a block of Markdown, rendered by Termify on a terminal and written as text otherwise.
 
-|Screen          |Shows                                                                          |
-|----------------|-------------------------------------------------------------------------------|
-|Ruleset list    |Ruleset files, optionally filtered by name, numbered for `open N`              |
-|Ruleset summary |Each rule with severity and counts of ok, miss, false alarm and skipped rows   |
-|Rule card       |Description, reversibility, risk tags, notes, the rows table, skipped reasons   |
-|Try result      |One ad hoc command: platform, resolved ruleset, severity, rules fired          |
+Screen         |Shows                                                                        
+---------------|-----------------------------------------------------------------------------
+Ruleset list   |Ruleset files, optionally filtered by name, numbered for `open N`            
+Ruleset summary|Each rule with severity and counts of ok, miss, false alarm and skipped rows 
+Rule card      |Description, reversibility, risk tags, notes, the rows table, skipped reasons
+Try result     |One ad hoc command: platform, resolved ruleset, severity, rules fired        
 
 Pressing Enter steps to the next rule, so a reviewer can walk a ruleset with one key. `problems` limits rule cards to misses and false alarms.
 
@@ -239,13 +243,13 @@ Views are pure functions from bench results to Markdown; the session holds navig
 1. **M1. Runner and report.** Load rulesets, read examples, generate variants that need no flag declaration, run them, and print a text report via `commandant-bench report posix/rm#rm-recursive-force`. Pilot on `rm`.
 2. **M2. Interactive review.** The `review` subcommand (section 12).
 3. **M3. Lint and calibration.** The `lint` subcommand, lint and calibration on every report and rule card, and `siblings` in `review`.
-4. **M4. Sign-off store.**
+4. **M4. Sign-off store.** `signoff` in `review`, the `status` subcommand, and review state on reports and cards.
 5. **M5. Engine: flag declaration and the unrecognised-flag check** (in `commandant.cr`), enabling the `alias`, `long` and `abbrev` variants and the combination bench.
 6. **M6. Corpus migration** to `examples` and `flags`, reviewed with the bench.
 
 ## 14. Open decisions
 
 - **D3. Examples inline in each rule, or in a separate file per tool?** Recommended: inline (section 8.1).
-- **D9. Sign-off location:** `reviews/` beside the rulesets (section 11), or inside each ruleset file?
+- **D9. Sign-off location:** decided: a `reviews/` tree beside the rulesets (section 11).
 - **D10. TUI library:** decided: Termify for rendering, line-based input, no windowing.
 - **D11. Unrecognised flags:** decided: a separate check on every command, combined by highest severity, not a fallback default (section 8.2).

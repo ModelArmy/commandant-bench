@@ -19,7 +19,16 @@ module Commandant::Bench::CLI::Review
     @problems_only = false
     @platform = TargetPlatform::Linux
 
-    def initialize(@bench : Workbench, @display : Display)
+    QUESTIONS = {
+      "Q-a Accurate? Are the description and behaviour right for the tool",
+      "Q-b Catches the right things? Does it fire on what it should, and only that",
+      "Q-c Calibrated? Is the severity consistent with similar rules",
+      "Q-d Honest? Do the notes admit the rule's gaps",
+    }
+
+    # *reviewer* is the handle recorded with sign-offs; without one, `signoff`
+    # explains how to set it.
+    def initialize(@bench : Workbench, @display : Display, @reviewer : String? = nil)
     end
 
     # Shows the welcome, opens *start* if given, then answers commands until
@@ -56,11 +65,19 @@ module Commandant::Bench::CLI::Review
       when "prev"     then step(-1)
       when "list"     then list(rest.presence)
       when "open"     then open(rest)
-      when "rules"    then show_ruleset
-      when "problems" then toggle_problems
       when "try"      then try(rest)
       when "platform" then set_platform(rest)
+      else                 dispatch_view(command)
+      end
+    end
+
+    # Commands that take no argument and act on the open ruleset or rule.
+    private def dispatch_view(command : String) : Nil
+      case command
+      when "rules"    then show_ruleset
+      when "problems" then toggle_problems
       when "siblings" then show_siblings
+      when "signoff"  then sign_off
       when "help"     then @display.show(Views::HELP)
       else
         number = command.to_i? || raise ArgumentError.new("Unknown command `#{command}`. Type `help`.")
@@ -142,6 +159,39 @@ module Commandant::Bench::CLI::Review
     private def show_siblings : Nil
       index = @index || raise ArgumentError.new("Open a rule first")
       @display.show(Views.siblings(@reports[index]))
+    end
+
+    private def sign_off : Nil
+      index = @index || raise ArgumentError.new("Open a rule first")
+      reviewer = @reviewer || raise ArgumentError.new(
+        "No reviewer handle: run `git config --global github.user HANDLE`, or start review with `--reviewer HANDLE`")
+      report = @reports[index]
+
+      @display.show(Views.sign_off_prompt(report, reviewer))
+      answers = QUESTIONS.map { |question| ask_answer(question) || return cancel_sign_off }
+      note = @display.ask("Note (optional)> ").try(&.strip) || return cancel_sign_off
+      return cancel_sign_off if note == "cancel"
+
+      record = @bench.sign_off(report, reviewer, Answers.new(answers[0], answers[1], answers[2], answers[3]), note)
+      status = ReviewStatus.of(record, report.rule_hash)
+      @reports[index] = report.with_review(status)
+      @display.show(Views.review(status))
+    end
+
+    private def ask_answer(question : String) : Answer?
+      loop do
+        reply = @display.ask("#{question}? [y/n] ") || return
+        case reply.strip.downcase
+        when "y", "yes", "pass" then return Answer::Pass
+        when "n", "no", "fail"  then return Answer::Fail
+        when "cancel"           then return
+        else                         @display.show("Answer `y`, `n` or `cancel`.")
+        end
+      end
+    end
+
+    private def cancel_sign_off : Nil
+      @display.show("Sign-off cancelled; nothing recorded.")
     end
 
     private def toggle_problems : Nil

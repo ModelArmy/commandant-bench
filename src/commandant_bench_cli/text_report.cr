@@ -16,6 +16,7 @@ module Commandant::Bench::CLI::TextReport
     io.puts "  #{report.description}"
     io.puts "  (examples taken from pattern `example` fields)" if report.examples_from_patterns?
     io.puts "  #{calibration(report)}"
+    io.puts "  review: #{report.review.state.name}#{report.review.sign_off.try { |sign_off| " (@#{sign_off.reviewer} #{sign_off.date})" }}"
     report.lint.each { |finding| io.puts "  #{lint_line(finding)}" }
     io.puts
 
@@ -38,6 +39,19 @@ module Commandant::Bench::CLI::TextReport
     findings.each { |finding| io.puts "#{finding.location.ljust(48)} #{lint_line(finding)}" }
     errors = findings.count(&.level.error?)
     io.puts "#{findings.size} findings: #{errors} error, #{findings.size - errors} advice"
+  end
+
+  # Writes one line per rule with its review state, and counts per state.
+  def self.render(statuses : Array({RuleRef, ReviewStatus}), io : IO) : Nil
+    statuses.each do |(rule, status)|
+      line = "#{rule.to_s.ljust(56)} #{status.state.name.ljust(17)}"
+      if sign_off = status.sign_off
+        line += " @#{sign_off.reviewer} #{sign_off.date}"
+      end
+      io.puts line.rstrip
+    end
+    counts = ReviewState.values.map { |state| "#{statuses.count(&.[1].state.==(state))} #{state.name}" }
+    io.puts "#{statuses.size} rules: #{counts.join(", ")}"
   end
 
   def self.lint_line(finding : LintFinding) : String

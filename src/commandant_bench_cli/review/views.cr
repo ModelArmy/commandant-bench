@@ -24,6 +24,7 @@ module Commandant::Bench::CLI::Review::Views
     | `rules` | Back to the open ruleset's rules |
     | `problems` | Show only misses and false alarms, or everything again |
     | `siblings` | Rules elsewhere that share the open rule's risk tags |
+    | `signoff` | Answer the four review questions for the open rule and record them |
     | `try COMMAND` | Assess one command against the full tree |
     | `platform NAME` | Platform for `try`: linux, macos, windows-cmd, windows-powershell |
     | `help` | Show this help |
@@ -52,8 +53,8 @@ module Commandant::Bench::CLI::Review::Views
   def self.ruleset_summary(ruleset : RulesetRef, reports : Array(RuleReport), findings : Array(LintFinding)) : String
     String.build do |io|
       io << "## " << ruleset << "\n\n"
-      io << "| # | Rule | Severity | ok | miss | false alarm | skipped | lint | calibration |\n"
-      io << "|--:|---|---|--:|--:|--:|--:|--:|---|\n"
+      io << "| # | Rule | Severity | ok | miss | false alarm | skipped | lint | calibration | review |\n"
+      io << "|--:|---|---|--:|--:|--:|--:|--:|---|---|\n"
       reports.each_with_index(1) do |report, number|
         io << "| " << number << " | " << report.rule.rule_id << " | " << report.severity
         {Outcome::Ok, Outcome::Miss, Outcome::FalseAlarm, Outcome::Skipped}.each do |outcome|
@@ -61,7 +62,8 @@ module Commandant::Bench::CLI::Review::Views
           problem = count > 0 && (outcome.miss? || outcome.false_alarm?)
           io << " | " << (problem ? "**#{count}**" : count)
         end
-        io << " | " << report.lint.size << " | " << (report.calibration.outlier? ? "**outlier**" : "") << " |\n"
+        io << " | " << report.lint.size << " | " << (report.calibration.outlier? ? "**outlier**" : "")
+        io << " | " << report.review.state.name << " |\n"
       end
       io << "\n"
       lint_list(findings.select(&.rule_id.nil?), io)
@@ -79,6 +81,7 @@ module Commandant::Bench::CLI::Review::Views
         io << "> **Notes:** " << notes << "\n\n"
       end
       io << calibration(report) << "\n\n"
+      io << review(report.review) << "\n\n"
       lint_list(report.lint, io)
       io << "*Examples taken from pattern `example` fields.*\n\n" if report.examples_from_patterns?
 
@@ -118,6 +121,34 @@ module Commandant::Bench::CLI::Review::Views
 
     text = "Calibration: #{calibration.usual_count} of #{calibration.close} close siblings are #{usual}"
     calibration.outlier? ? "#{text}; this rule is #{report.severity}: **outlier**" : text
+  end
+
+  def self.review(status : ReviewStatus) : String
+    sign_off = status.sign_off
+    return "Review: unreviewed." unless sign_off
+
+    by = "@#{sign_off.reviewer} on #{sign_off.date}"
+    text = case status.state
+           when .approved?          then "Review: approved by #{by}"
+           when .changes_requested? then "Review: **changes requested** by #{by}: #{failed(sign_off.answers)}"
+           else                          "Review: **lapsed**; reviewed by #{by}, and the rule has changed since"
+           end
+    sign_off.note.empty? ? "#{text}." : "#{text}. Note: #{sign_off.note}"
+  end
+
+  def self.sign_off_prompt(report : RuleReport, reviewer : String) : String
+    summary = BenchSummary.of(report)
+    <<-MD
+      ### Sign-off for #{report.rule} as @#{reviewer}
+
+      The bench shows #{summary.misses} miss, #{summary.false_alarms} false alarm and #{summary.skipped} skipped of #{summary.rows} rows. Answer each question `y` or `n`; `cancel` stops without recording anything.
+      MD
+  end
+
+  private def self.failed(answers : Answers) : String
+    names = {"accurate" => answers.accurate, "catches" => answers.catches,
+             "calibrated" => answers.calibrated, "honest" => answers.honest}
+    names.select { |_, answer| answer.fail? }.keys.join(", ")
   end
 
   def self.lint_list(findings : Array(LintFinding), io : IO) : Nil

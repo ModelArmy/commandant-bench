@@ -8,6 +8,7 @@ require "./commandant_bench/examples"
 require "./commandant_bench/runner"
 require "./commandant_bench/lint"
 require "./commandant_bench/calibration"
+require "./commandant_bench/sign_off"
 require "./commandant_bench/report"
 require "./commandant_bench/workbench"
 

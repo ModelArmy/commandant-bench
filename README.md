@@ -32,9 +32,10 @@ commandant-bench report posix/rm --json                # the same, as JSON
 commandant-bench try 'FOO=1 rm -rf build/'             # assess one command
 commandant-bench review posix/rm                       # review interactively
 commandant-bench lint                                  # lint the tree; exits 1 on errors
+commandant-bench status posix/rm                       # review state of each rule
 ```
 
-`review` is an interactive session that asks and scrolls: open a ruleset, press Enter to step through its rules, `problems` to see only misses and false alarms, `try` to check a hunch, `siblings` to compare a rule's severity with rules sharing its risk tags. Type `help` inside it for all commands. On a terminal it renders Markdown with [Termify](https://github.com/nogginly/termify.cr); when piped, or with `--plain`, it writes the Markdown as text.
+`review` is an interactive session that asks and scrolls: open a ruleset, press Enter to step through its rules, `problems` to see only misses and false alarms, `try` to check a hunch, `siblings` to compare a rule's severity with rules sharing its risk tags. `signoff` asks the four review questions and records the answers in `reviews/`, beside the ruleset tree; editing the rule later marks the review as lapsed. Set your handle once with `git config --global github.user HANDLE`. Type `help` inside it for all commands. On a terminal it renders Markdown with [Termify](https://github.com/nogginly/termify.cr); when piped, or with `--plain`, it writes the Markdown as text.
 
 From Crystal, use `Commandant::Bench::Workbench`; see [BENCH_DESIGN.md](./BENCH_DESIGN.md) for the API.
 

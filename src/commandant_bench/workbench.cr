@@ -16,9 +16,13 @@ module Commandant::Bench
   # whose subject is the engine are assessed against the full tree.
   class Workbench
     getter rulesets_path : Path
+    getter reviews : ReviewStore
     @calibration_index : CalibrationIndex? = nil
 
-    def initialize(@rulesets_path : Path)
+    # Creates a bench over the ruleset tree at *rulesets_path*. Sign-offs are
+    # kept in *reviews_path*, by default a `reviews` folder beside the tree.
+    def initialize(@rulesets_path : Path, reviews_path : Path? = nil)
+      @reviews = ReviewStore.new(reviews_path || @rulesets_path.parent / "reviews")
     end
 
     # All ruleset files in the tree, sorted by folder then tool.
@@ -56,9 +60,10 @@ module Commandant::Bench
         rule_runner = Runner.new(isolated)
         engine_runner = Runner.new(@rulesets_path)
         findings = lint(ruleset, typed, raw, rule_runner)
+        sign_offs = @reviews.read(ruleset)
 
         rules(ruleset).map do |ref|
-          build_report(ref, typed, raw, known_flags, rule_runner, engine_runner, findings)
+          build_report(ref, typed, raw, known_flags, rule_runner, engine_runner, findings, sign_offs)
         end
       end
     end
@@ -81,6 +86,36 @@ module Commandant::Bench
       calibrate(rule, typed)
     end
 
+    # The review state of *rule*: unreviewed, approved, changes requested, or
+    # lapsed because the rule changed after its sign-off.
+    def status(rule : RuleRef) : ReviewStatus
+      _, raw = load(rule.ruleset)
+      ReviewStatus.of(@reviews.read(rule.ruleset)[rule.rule_id]?, RuleHash.of(raw, rule.rule_id))
+    end
+
+    # The review state of every rule in *ruleset*, without benching them.
+    def statuses(ruleset : RulesetRef) : Array({RuleRef, ReviewStatus})
+      _, raw = load(ruleset)
+      sign_offs = @reviews.read(ruleset)
+      rules(ruleset).map do |rule|
+        {rule, ReviewStatus.of(sign_offs[rule.rule_id]?, RuleHash.of(raw, rule.rule_id))}
+      end
+    end
+
+    # Records a review of the rule in *report*, replacing any earlier one, and
+    # returns it. *reviewer* is a handle such as `nogginly`; a leading `@` is
+    # dropped.
+    def sign_off(report : RuleReport, reviewer : String, answers : Answers, note : String = "",
+                 date : Time = Time.utc) : SignOff
+      handle = reviewer.lchop('@')
+      raise ArgumentError.new("Reviewer must be a handle, got #{reviewer.inspect}") unless handle.matches?(/\A[A-Za-z0-9][A-Za-z0-9-]*\z/)
+
+      sign_off = SignOff.new(report.rule_hash, handle, date.to_s("%F"), report.engine_version, answers, note,
+        BenchSummary.of(report))
+      @reviews.write(report.rule.ruleset, report.rule.rule_id, sign_off)
+      sign_off
+    end
+
     # Assesses one ad hoc command against the full tree.
     def try(command : String, platform : TargetPlatform) : Actual
       Runner.new(@rulesets_path).run(command, platform, Process.parse_arguments_posix(command).first? || "")
@@ -97,7 +132,7 @@ module Commandant::Bench
       index.calibrate(ref, tags, rule.try(&.severity) || typed.default_rule.severity)
     end
 
-    private def build_report(ref, typed, raw, known_flags, rule_runner, engine_runner, findings) : RuleReport
+    private def build_report(ref, typed, raw, known_flags, rule_runner, engine_runner, findings, sign_offs) : RuleReport
       rule = typed.rules.find(&.id.==(ref.rule_id))
       severity = rule.try(&.severity) || typed.default_rule.severity
       examples = Examples.read(raw, ref.rule_id)
@@ -132,8 +167,10 @@ module Commandant::Bench
         )
       end
 
+      rule_hash = RuleHash.of(raw, ref.rule_id)
       RuleReport.new(
         rule: ref,
+        rule_hash: rule_hash,
         description: rule.try(&.description) || "Default rule: applies when no other rule fires.",
         severity: severity,
         reversible: (rule.try(&.reversible) || typed.default_rule.reversible).to_s,
@@ -144,6 +181,7 @@ module Commandant::Bench
         rows: rows,
         lint: findings.select(&.rule_id.==(ref.rule_id)),
         calibration: calibrate(ref, typed),
+        review: ReviewStatus.of(sign_offs[ref.rule_id]?, rule_hash),
       )
     end
 
